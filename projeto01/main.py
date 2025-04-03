@@ -4,6 +4,8 @@ import time
 import random
 from machine import Timer
 from ssd1306 import SSD1306_I2C
+import math
+
 
 # --- Configuração dos pinos ---
 LED_PIN = 7        # GPIO7 para a matriz NeoPixel (5x5)
@@ -37,7 +39,7 @@ def check_joystick_movement(timer):
     # Detecta mudanças significativas nos eixos
     if abs(x - last_x) > threshold or abs(y - last_y) > threshold:
         new_dir = read_joystick()  # Usa a função existente
-        if new_dir:
+        if new_dir != oposite(new_dir): #resolve o problema da cobra virar do avesso e morrer
             direction = new_dir
             print(f"Movimento detectado! Direção: {direction}")
     
@@ -62,7 +64,19 @@ direction = "RIGHT"  # Direção inicial
 food = (0, 0)       # Posição da comida
 score = 0           # Pontuação
 game_speed = 0.9    # Velocidade 
-brightness = 0.4
+brightness = 0.1
+cor_fruta_atual = [255,0,0]
+
+
+def oposite(direction):
+    if direction == 'LEFT':
+        return 'RIGHT'
+    if direction == 'RIGHT':
+        return 'LEFT'
+    if direction == 'UP':
+        return 'DOWN'
+    if direction == 'DOWN':
+        return 'UP'
 
 def apply_brightness(color, brightness):
     """Ajusta o brilho de uma cor RGB (0-255)"""
@@ -191,11 +205,85 @@ def update_snake():
 def draw():
     """Desenha a cobra e comida na matriz"""
     clear_matrix()
-
-    for x, y in snake:
-        set_pixel(x, y,  apply_brightness((0, 255, 0), brightness))  # Cobra verde
-    set_pixel(food[0], food[1], apply_brightness((255, 0, 0), brightness))  # Comida vermelha
+    draw_snake_color()
+    set_pixel(food[0], food[1], apply_brightness((255,255,255), brightness))  # Comida vermelha
     np.write()
+
+def draw_snake_color():
+    """Desenha a cobra com cores variadas baseadas no HSL"""
+    for i, pixel in enumerate(snake):
+        # Converte o índice do segmento para uma cor
+        color = set_hue(i)
+        set_pixel(pixel[0], pixel[1], apply_brightness(color, brightness))
+
+def set_hue(indice):
+    """recebe um indice na conbra, faz o hue variar em 360/25 = 15 graus"""
+    
+    #Começa a partir do vermelho (255,0,0) -> hue = 0 graus
+    if indice == 0:
+        R = 255
+        G = 0
+        B = 0
+        return (R,G,B)
+    
+    hue = indice * 15
+    # Converte para RGB (0-255)
+    r, g, b = hue_to_rgb(hue)
+    return (int(r * 255), int(g * 255), int(b * 255))
+
+def hue_to_rgb(h, S=1.0, V=1.0):
+    """
+    Converte um valor de hue (matiz) para RGB.
+    
+    Parâmetros:
+    - h: ângulo de hue (0-360)
+    - S: saturação (0-1), padrão 1.0
+    - V: valor/brightness (0-1), padrão 1.0
+    
+    Retorna:
+    - Tupla (R, G, B) com valores entre 0 e 1
+    """
+    # Normaliza h para o intervalo [0, 360)
+    h = h % 360
+    
+    # Calcula f
+    H = h / 60.0
+    f = H - math.floor(H)
+    
+    # Calcula os valores intermediários
+    p = V * (1 - S)
+    q = V * (1 - S * f)
+    t = V * (1 - S * (1 - f))
+    
+    # Determina R, G, B baseado no intervalo de h
+    if 0 <= h < 60 or 300 <= h < 360:
+        R = V
+    elif 60 <= h < 120:
+        R = q
+    elif 120 <= h < 240:
+        R = p
+    else:  # 240 <= h < 300
+        R = t
+    
+    if 0 <= h < 60:
+        G = t
+    elif 60 <= h < 180:
+        G = V
+    elif 180 <= h < 240:
+        G = q
+    else:  # 240 <= h < 360
+        G = p
+    
+    if 0 <= h < 120:
+        B = p
+    elif 120 <= h < 180:
+        B = t
+    elif 180 <= h < 300:
+        B = V
+    else:  # 300 <= h < 360
+        B = q
+    
+    return (R, G, B)
 
 # --- Inicialização ---
 show_start_screen()
