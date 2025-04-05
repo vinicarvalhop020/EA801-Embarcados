@@ -108,7 +108,7 @@ def button_handler(pin):
 botao_b.irq(trigger=Pin.IRQ_FALLING, handler=button_handler)
 
 def move_cars():
-    global cars, game_active, score, last_car_move, should_generate_cars
+    global cars, game_active, score, last_car_move, should_generate_cars, last_car_generation
     
     if time.ticks_ms() - last_car_move < 500:
         return
@@ -152,9 +152,16 @@ def move_cars():
 
 def generate_cars():
     global cars
-    positions = random.sample([0, 1, 2, 3, 4], random.randint(1, 3))
-    for pos in positions:
-        cars.append([0, pos])  # [linha, coluna]
+    positions = [0, 1, 2, 3, 4]
+    
+    # Embaralha simplesmente selecionando posições aleatórias
+    num_cars = random.randint(1, 3)
+    for _ in range(num_cars):
+        if not positions:
+            break
+        pos = random.choice(positions)
+        positions.remove(pos)
+        cars.append([0, pos])
 
 def update_display():
     oled.fill(0)
