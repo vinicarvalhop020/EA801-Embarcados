@@ -68,7 +68,7 @@ BUZZER_PIN = 21  # GPIO21 para Buzzer A (conforme seu hardware)
 buzzer = PWM(Pin(BUZZER_PIN))
 engine_sound_enabled = True
 last_sound_update = 0
-current_frequency = 0
+current_frequency = 200
 target_frequency = 0
 engine_rpm = 0 
 
@@ -96,8 +96,8 @@ def update_engine_sound():
     if current_time - last_sound_update > 50:
         last_sound_update = current_time
         
-        # Faixa de frequência mais grave (80Hz-400Hz)
-        base_freq = 80  # Frequência mínima (mais grave)
+        
+        base_freq = 200  # Frequência mínima (mais grave)
         
         # Calcula variação baseada na posição e movimento
         position_factor = abs(player_x - 2) * 30  # 0 a 60
@@ -119,7 +119,7 @@ def update_engine_sound():
         buzzer.freq(int(current_frequency))
         
         # Efeito de ronco - variação no volume
-        volume = 10000 + int(math.sin(utime.ticks_ms() / 200) * 10000)
+        volume = 4000 + int(math.sin(utime.ticks_ms() / 200) * 10000)
         buzzer.duty_u16(volume)
 
         # Efeito aleatório de "arrancada"
