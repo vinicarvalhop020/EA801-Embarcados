@@ -69,6 +69,7 @@ engine_sound_enabled = True
 last_sound_update = 0
 current_frequency = 0
 target_frequency = 0
+engine_rpm = 0 
 
 # Variáveis de debounce
 DEBOUNCE_TIME = 500
@@ -82,33 +83,43 @@ def manual_shuffle(arr):
     return arr
 
 def update_engine_sound():
-    global last_sound_update, current_frequency, target_frequency
+    global last_sound_update, current_frequency, target_frequency, engine_rpm
     
     if not engine_sound_enabled or not game_active:
-        buzzer.duty_u16(0)  # Desliga o buzzer
+        buzzer.duty_u16(0)
         return
     
     current_time = utime.ticks_ms()
     
-    # Atualiza o som apenas a cada 50ms para suavizar
-    if current_time - last_sound_update > 50:
+    # Atualiza o som a cada 30ms para maior responsividade
+    if current_time - last_sound_update > 30:
         last_sound_update = current_time
         
-        # Calcula a frequência baseada na posição do jogador e carros
-        base_freq = 100 + abs(player_x - 2) * 100  # Varia com a posição horizontal
+        # Calcula RPM baseado na posição e movimento (2000-5000 RPM convertido para frequência)
+        engine_rpm = 2000 + abs(player_x - 2) * 800 + random.randint(0, 300)
         
-        # Adiciona variação aleatória para efeito de ronco
-        target_frequency = base_freq + random.randint(0, 50)
+        # Converte RPM para frequência audível (2kHz-5kHz)
+        target_frequency = 1500 + int(engine_rpm * 0.7)
         
-        # Suaviza a transição de frequência
+        # Suaviza a transição com incremento dinâmico
+        freq_diff = target_frequency - current_frequency
+        step = max(10, abs(freq_diff) // 5)  # Passo adaptativo
+        
         if current_frequency < target_frequency:
-            current_frequency += 5
-        elif current_frequency > target_frequency:
-            current_frequency -= 5
+            current_frequency = min(current_frequency + step, target_frequency)
+        else:
+            current_frequency = max(current_frequency - step, target_frequency)
         
-        # Aplica a frequência ao buzzer com volume moderado
-        buzzer.freq(int(current_frequency))
-        buzzer.duty_u16(32768)  # 50% duty cycle para volume moderado
+        # Aplica a frequência com volume moderado (50% duty cycle)
+        buzzer.freq(current_frequency)
+        buzzer.duty_u16(32768)  # 50% de volume
+
+        # Adiciona um efeito de "pulsação" do motor
+        if random.random() < 0.2:  # 20% de chance de pequena variação
+            buzzer.freq(current_frequency + random.randint(-50, 50))
+            buzzer.duty_u16(49152)  # Aumenta volume momentaneamente
+            utime.sleep_ms(10)
+            buzzer.duty_u16(32768)  # Volta ao volume normal
 
 def set_pixel(x, y, color):
     """Acende o LED na posição (x,y) com RGB"""
