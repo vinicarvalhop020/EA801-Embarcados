@@ -1,9 +1,10 @@
 from machine import Pin, ADC, SoftI2C, PWM
 from ssd1306 import SSD1306_I2C
 import neopixel
-import time
+import utime  # Alterado de time para utime
 import random
 import machine
+import math
 
 # Configurações iniciais
 np = neopixel.NeoPixel(Pin(7), 25)
@@ -40,6 +41,13 @@ COUNTDOWN_PATTERNS = {
         [0, 1, 1, 1, 0]
     ]
 }
+
+VICTORY_SOUND = [
+    (392, 200),  # Sol
+    (523, 200),  # Dó agudo
+    (659, 300),  # Mi
+    (784, 400)   # Sol agudo
+]
 # Display OLED
 i2c = SoftI2C(scl=Pin(15), sda=Pin(14))
 oled = SSD1306_I2C(128, 64, i2c)
@@ -63,9 +71,16 @@ last_car_move = 0
 last_car_generation = 0
 should_generate_cars = True
 game_over = False
+BUZZER_PIN = 21  # GPIO21 para Buzzer A (conforme seu hardware)
+buzzer = PWM(Pin(BUZZER_PIN))
+engine_sound_enabled = True
+last_sound_update = 0
+current_frequency = 200
+target_frequency = 0
+engine_rpm = 0 
 
 # Variáveis de debounce
-DEBOUNCE_TIME = 300
+DEBOUNCE_TIME = 500
 last_button_time = 0
 
 # Função para embaralhar manualmente (substitui o random.shuffle)
@@ -74,6 +89,52 @@ def manual_shuffle(arr):
         j = random.randint(0, i)
         arr[i], arr[j] = arr[j], arr[i]
     return arr
+
+def update_engine_sound():
+    global last_sound_update, current_frequency, target_frequency, engine_rpm
+    
+    if not engine_sound_enabled or not game_active:
+        buzzer.duty_u16(0)
+        return
+    
+    current_time = utime.ticks_ms()
+    
+    # Atualiza a cada 50ms para manter um som mais constante
+    if current_time - last_sound_update > 50:
+        last_sound_update = current_time
+        
+        
+        base_freq = 200  # Frequência mínima (mais grave)
+        
+        # Calcula variação baseada na posição e movimento
+        position_factor = abs(player_x - 2) * 30  # 0 a 60
+        movement_factor = 0
+        
+        # Adiciona variação quando o jogador se move
+        if player_x != 2 or player_y != 4:
+            movement_factor = 50 + random.randint(0, 30)
+        
+        target_frequency = base_freq + position_factor + movement_factor
+        
+        # Suaviza a transição
+        if current_frequency < target_frequency:
+            current_frequency = min(current_frequency + 5, target_frequency)
+        elif current_frequency > target_frequency:
+            current_frequency = max(current_frequency - 5, target_frequency)
+        
+        # Aplica a frequência com volume moderado
+        buzzer.freq(int(current_frequency))
+        
+        # Efeito de ronco - variação no volume
+        volume = 2000 + int(math.sin(utime.ticks_ms() / 200) * 10000)
+        buzzer.duty_u16(volume)
+
+        # Efeito aleatório de "arrancada"
+        if random.random() < 0.1:  # 10% de chance
+            buzzer.freq(int(current_frequency * 1.2))
+            buzzer.duty_u16(30000)
+            utime.sleep_ms(30)
+            buzzer.freq(int(current_frequency))
 
 def set_pixel(x, y, color):
     """Acende o LED na posição (x,y) com RGB"""
@@ -104,7 +165,7 @@ def draw_game_state():
 
 def debounce():
     global last_button_time
-    current_time = time.ticks_ms()
+    current_time = utime.ticks_ms()  # Alterado de time para utime
     if current_time - last_button_time < DEBOUNCE_TIME:
         return False
     last_button_time = current_time
@@ -120,19 +181,21 @@ def apply_brightness(color, brightness):
     )
 
 def button_handler(pin):
-    global game_active, score, player_x, player_y, cars, should_generate_cars, game_over
+    global game_active, score, player_x, player_y, cars, should_generate_cars, game_over, engine_sound_enabled
     
     if not debounce():
         return
     
     if not game_active:
         game_active = True
+        game_over = False
+        engine_sound_enabled = True
         show_number(3, apply_brightness((0, 0, 255), 0.1))
-        time.sleep_ms(1000)
+        utime.sleep_ms(1000)  # Alterado de time para utime
         show_number(2, apply_brightness((0, 0, 255), 0.1))
-        time.sleep_ms(1000)
+        utime.sleep_ms(1000)  # Alterado de time para utime
         show_number(1, apply_brightness((0, 0, 255), 0.1))
-        time.sleep_ms(1000)
+        utime.sleep_ms(1000)  # Alterado de time para utime
         score = 100
         player_x = 2
         player_y = 4
@@ -146,8 +209,8 @@ def button_handler(pin):
     else:
         if game_over == True:
             game_active = False
+            engine_sound_enabled = False
             show_game_over()
-            game_loop()
 
 botao_b.irq(trigger=Pin.IRQ_FALLING, handler=button_handler)
 
@@ -166,7 +229,7 @@ def generate_subsequent_cars():
 def move_cars():
     global cars, game_active, score, last_car_move, should_generate_cars, last_car_generation, game_over
     
-    current_time = time.ticks_ms()
+    current_time = utime.ticks_ms()  # Alterado de time para utime
     
     if current_time - last_car_move >= 500:
         last_car_move = current_time
@@ -204,6 +267,7 @@ def move_cars():
         should_generate_cars = not should_generate_cars
         last_car_generation = current_time
     
+    update_engine_sound()
     update_display()
     draw_game_state()
 
@@ -213,6 +277,9 @@ def update_display():
     oled.show()
 
 def show_game_over():
+    global engine_sound_enabled
+    engine_sound_enabled = False
+    buzzer.duty_u16(0)
     np.fill((0, 0, 0))
     np.write()
     oled.fill(0)
@@ -220,22 +287,38 @@ def show_game_over():
     oled.show()
 
 def show_win_message():
-    for _ in range(5):
-        np.fill((0, 0, 64))
+    global engine_sound_enabled
+    engine_sound_enabled = False
+    buzzer.duty_u16(0)  # Desliga o som do motor
+    
+    for i in range(5):
+        # Toca a melodia de vitória
+        for note, duration in VICTORY_SOUND:
+            buzzer.freq(note)
+            buzzer.duty_u16(32768)  # 50% volume
+            utime.sleep_ms(duration)
+            buzzer.duty_u16(0)  # Pausa entre notas
+            utime.sleep_ms(50)
+        
+        # Efeito visual
+        np.fill((0, 0, 64))  # Azul
         np.write()
         oled.fill(0)
         oled.text("Voce ganhou!", 20, 20)
         oled.show()
-        time.sleep(0.5)
-        np.fill((0, 0, 0))
+        utime.sleep_ms(300)
+        
+        np.fill((0, 0, 0))  # Apaga
         np.write()
-        time.sleep(0.5)
+        utime.sleep_ms(300)
+
+    buzzer.duty_u16(0)  # Garante que o buzzer seja desligado
 
 def game_loop():
     while True:
         if game_active:
             move_cars()
-        time.sleep(0.05)
+        utime.sleep(0.05)  # Alterado de time para utime
 
 # Configura interrupção do joystick
 joystick_timer = machine.Timer()
