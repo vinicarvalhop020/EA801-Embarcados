@@ -63,21 +63,17 @@ def clear_matrix():
     for i in range(25):
         np[i] = (0, 0, 0)
 
-
-
-
-
 def draw_game():
     global brightness
     """Desenha todos os elementos na matriz"""
     clear_matrix()
     
-    # Desenha nave (verde)
-    set_pixel(nave_pos[0], nave_pos[1], apply_brightness((0, 255, 0),brightness))
+    # Desenha nave (roxo)
+    set_pixel(nave_pos[0], nave_pos[1], apply_brightness((255, 0, 255),brightness))
     
     # Desenha tiros (azul)
     for tiro in tiros:
-        set_pixel(tiro[0], tiro[1], apply_brightness((0, 0, 255),brightness))
+        set_pixel(tiro[0], tiro[1], apply_brightness((255, 255, 0),brightness))
     
     # Desenha inimigos (vermelho)
     for inimigo in inimigos:
@@ -92,17 +88,10 @@ def update_display():
     oled.text(f"Vidas: {vidas}", 0, 20)
     oled.show()
 
-def mover_nave():
-    """Controla movimento da nave com joystick"""
-    x = joy_x.read_u16()
-    if x < 15000 and nave_pos[0] > 0:  # Esquerda
-        nave_pos[0] -= 1
-    elif x > 50000 and nave_pos[0] < 4:  # Direita
-        nave_pos[0] += 1
 
 def atirar():
     """Dispara um novo tiro"""
-    if len(tiros) < 2:  # Limite de 2 tiros simultâneos
+    if len(tiros) < 3:  # Limite de 2 tiros simultâneos
         tiros.append([nave_pos[0], nave_pos[1] - 1])
 
 def mover_tiros():
@@ -112,30 +101,42 @@ def mover_tiros():
         if tiro[1] < 0:
             tiros.remove(tiro)
 
+def mover_nave():
+    """Controla movimento da nave com joystick"""
+    x = joy_x.read_u16()
+    if x < 15000 and nave_pos[0] > 0:  # Esquerda
+        nave_pos[0] -= 1
+    elif x > 50000 and nave_pos[0] < 4:  # Direita
+        nave_pos[0] += 1
+
 def mover_inimigos():
-    """Movimenta os inimigos e verifica colisões"""
+    """Movimenta os inimigos corretamente e verifica fim de jogo"""
     global direcao_inimigos, game_state, vidas
-    
-    # Movimento lateral
-    for inimigo in inimigos:
-        inimigo[0] += direcao_inimigos
-    
-    # Verifica bordas
-    if any(inimigo[0] >= 4 for inimigo in inimigos) and direcao_inimigos == 1:
-        direcao_inimigos = -1
+
+    # Verifica se algum inimigo atingiu a borda
+    mudar_direcao = False
+    if direcao_inimigos == 1:
+        if any(inimigo[0] >= 4 for inimigo in inimigos):
+            mudar_direcao = True
+    elif direcao_inimigos == -1:
+        if any(inimigo[0] <= 0 for inimigo in inimigos):
+            mudar_direcao = True
+
+    if mudar_direcao:
+        direcao_inimigos *= -1
         for inimigo in inimigos:
             inimigo[1] += 1  # Desce uma linha
-    elif any(inimigo[0] <= 0 for inimigo in inimigos) and direcao_inimigos == -1:
-        direcao_inimigos = 1
+    else:
         for inimigo in inimigos:
-            inimigo[1] += 1
-    
-    # Verifica se inimigos chegaram no fundo
+            inimigo[0] += direcao_inimigos  # Move lateralmente
+
+    # Verifica se algum inimigo chegou ao fundo
     if any(inimigo[1] >= 4 for inimigo in inimigos):
         vidas -= 1
         if vidas <= 0:
             game_state = "GAME_OVER"
         reset_positions()
+
 
 def verificar_colisoes():
     """Verifica colisões entre tiros e inimigos"""
@@ -144,29 +145,36 @@ def verificar_colisoes():
     for tiro in tiros[:]:
         for inimigo in inimigos[:]:
             if tiro[0] == inimigo[0] and tiro[1] == inimigo[1]:
-                tiros.remove(tiro)
-                inimigos.remove(inimigo)
-                score += 10
-                break
+                if tiro in tiros:  # Verifica se ainda está na lista
+                    tiros.remove(tiro)
+                if inimigo in inimigos:
+                    inimigos.remove(inimigo)
+                    score += 10
+                break  # Sai do laço interno para evitar erro
+
 
 def reset_positions():
-    """Reinicia posições após perder vida"""
     global nave_pos, tiros, inimigos
     nave_pos = [2, 4]
     tiros = []
-    inimigos = [[i, 0] for i in range(5)]
-
+    inimigos = []
+    for y in range(3):  # Adiciona 3 linhas
+        for x in range(5):
+            inimigos.append([x, y])
 
 def reset_game():
-    """Reinicia o jogo completamente"""
     global nave_pos, tiros, inimigos, score, vidas, game_state, game_speed
     nave_pos = [2, 4]
     tiros = []
-    inimigos = [[i, 0] for i in range(5)]
+    inimigos = []
+    for y in range(3):  # Adiciona 3 linhas
+        for x in range(5):
+            inimigos.append([x, y])
     score = 0
     vidas = 3
-    game_speed = 0.5
+    game_speed = 0.95
     game_state = "RUNNING"
+
 
 
 
@@ -175,8 +183,6 @@ last_update = utime.ticks_ms()
 button_b.irq(trigger=Pin.IRQ_FALLING, handler=lambda p: atirar())
 
 # --- Temporizadores separados ---
-last_enemy_update = utime.ticks_ms()
-enemy_update_interval = 3000  # Inimigos movem a cada 3 segundo
 
 last_tiro_update = utime.ticks_ms()
 tiro_update_interval = 200  # Tiros movem a cada 200ms
@@ -184,33 +190,45 @@ tiro_update_interval = 200  # Tiros movem a cada 200ms
 last_game_update = utime.ticks_ms()
 game_speed = 100  # Atualizações gerais, como nave (a cada 100ms)
 
+last_enemy_move = utime.ticks_ms()
+enemy_move_interval = 2000  # ms (1 segundo para descer)
+
+last_tiro_move = utime.ticks_ms()
+tiro_move_interval = 200  # ms (mais rápido que o padrão atual)
+
+last_nave_move = utime.ticks_ms()
+nave_move_interval = 200  # A nave só pode se mover a cada 200 ms
+
 while True:
     now = utime.ticks_ms()
 
     if game_state == "RUNNING":
-        # --- Atualiza movimentação dos tiros ---
-        if utime.ticks_diff(now, last_tiro_update) > tiro_update_interval:
-            last_tiro_update = now
-            mover_tiros()
-            verificar_colisoes()  # Verifica colisões logo após mover os tiros
 
-        # --- Atualiza movimentação dos inimigos ---
-        if utime.ticks_diff(now, last_enemy_update) > enemy_update_interval:
-            last_enemy_update = now
+        if utime.ticks_diff(now, last_nave_move) >= nave_move_interval:
+            last_nave_move = now
+            mover_nave()
+
+
+        # Mover inimigos
+        if utime.ticks_diff(now, last_enemy_move) >= enemy_move_interval:
+            last_enemy_move = now
             mover_inimigos()
 
-        # --- Atualiza nave e desenha o jogo ---
-        if utime.ticks_diff(now, last_game_update) > game_speed:
-            last_game_update = now
-            mover_nave()
-            draw_game()
-            update_display()
+        # Mover tiros
+        if utime.ticks_diff(now, last_tiro_move) >= tiro_move_interval:
+            last_tiro_move = now
+            verificar_colisoes()  # Verifica antes do movimento
+            mover_tiros()
+            verificar_colisoes()  # Verifica após o movimento
 
-            if len(inimigos) < 2:
-                reset_positions()
-                enemy_update_interval = max(300, int(enemy_update_interval * 0.9))  # Mais rápido
-                tiro_update_interval = max(100, int(tiro_update_interval * 0.9))
+        draw_game()
+        update_display()
 
+        if len(inimigos) == 0:  # Poucos inimigos restantes
+            reset_positions()
+            # Aumenta dificuldade
+            enemy_move_interval = max(300, int(enemy_move_interval * 0.9))
+    
     elif game_state == "GAME_OVER":
         oled.fill(0)
         oled.text("GAME OVER", 30, 20)
