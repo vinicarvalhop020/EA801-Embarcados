@@ -41,6 +41,13 @@ COUNTDOWN_PATTERNS = {
         [0, 1, 1, 1, 0]
     ]
 }
+
+VICTORY_SOUND = [
+    (392, 200),  # Sol
+    (523, 200),  # Dó agudo
+    (659, 300),  # Mi
+    (784, 400)   # Sol agudo
+]
 # Display OLED
 i2c = SoftI2C(scl=Pin(15), sda=Pin(14))
 oled = SSD1306_I2C(128, 64, i2c)
@@ -119,7 +126,7 @@ def update_engine_sound():
         buzzer.freq(int(current_frequency))
         
         # Efeito de ronco - variação no volume
-        volume = 4000 + int(math.sin(utime.ticks_ms() / 200) * 10000)
+        volume = 2000 + int(math.sin(utime.ticks_ms() / 200) * 10000)
         buzzer.duty_u16(volume)
 
         # Efeito aleatório de "arrancada"
@@ -282,17 +289,30 @@ def show_game_over():
 def show_win_message():
     global engine_sound_enabled
     engine_sound_enabled = False
-    buzzer.duty_u16(0)
-    for _ in range(5):
-        np.fill((0, 0, 64))
+    buzzer.duty_u16(0)  # Desliga o som do motor
+    
+    for i in range(5):
+        # Toca a melodia de vitória
+        for note, duration in VICTORY_SOUND:
+            buzzer.freq(note)
+            buzzer.duty_u16(32768)  # 50% volume
+            utime.sleep_ms(duration)
+            buzzer.duty_u16(0)  # Pausa entre notas
+            utime.sleep_ms(50)
+        
+        # Efeito visual
+        np.fill((0, 0, 64))  # Azul
         np.write()
         oled.fill(0)
         oled.text("Voce ganhou!", 20, 20)
         oled.show()
-        utime.sleep(0.5)  # Alterado de time para utime
-        np.fill((0, 0, 0))
+        utime.sleep_ms(300)
+        
+        np.fill((0, 0, 0))  # Apaga
         np.write()
-        utime.sleep(0.5)  # Alterado de time para utime
+        utime.sleep_ms(300)
+
+    buzzer.duty_u16(0)  # Garante que o buzzer seja desligado
 
 def game_loop():
     while True:
