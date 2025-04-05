@@ -147,7 +147,6 @@ def button_handler(pin):
         if game_over == True:
             game_active = False
             show_game_over()
-            game_loop()
 
 botao_b.irq(trigger=Pin.IRQ_FALLING, handler=button_handler)
 
