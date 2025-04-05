@@ -154,7 +154,7 @@ botao_b.irq(trigger=Pin.IRQ_FALLING, handler=button_handler)
 def generate_subsequent_cars():
     global cars
     positions = manual_shuffle([0, 1, 2, 3, 4])
-    num_cars = random.randint(1, 3)
+    num_cars = random.randint(1, 4)
     
     new_cars = []
     for pos in positions[:num_cars]:
