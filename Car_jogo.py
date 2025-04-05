@@ -63,6 +63,12 @@ last_car_move = 0
 last_car_generation = 0
 should_generate_cars = True
 game_over = False
+BUZZER_PIN = 21  # GPIO21 para Buzzer A (conforme seu hardware)
+buzzer = PWM(Pin(BUZZER_PIN))
+engine_sound_enabled = True
+last_sound_update = 0
+current_frequency = 0
+target_frequency = 0
 
 # Variáveis de debounce
 DEBOUNCE_TIME = 500
@@ -74,6 +80,35 @@ def manual_shuffle(arr):
         j = random.randint(0, i)
         arr[i], arr[j] = arr[j], arr[i]
     return arr
+
+def update_engine_sound():
+    global last_sound_update, current_frequency, target_frequency
+    
+    if not engine_sound_enabled or not game_active:
+        buzzer.duty_u16(0)  # Desliga o buzzer
+        return
+    
+    current_time = utime.ticks_ms()
+    
+    # Atualiza o som apenas a cada 50ms para suavizar
+    if current_time - last_sound_update > 50:
+        last_sound_update = current_time
+        
+        # Calcula a frequência baseada na posição do jogador e carros
+        base_freq = 100 + abs(player_x - 2) * 100  # Varia com a posição horizontal
+        
+        # Adiciona variação aleatória para efeito de ronco
+        target_frequency = base_freq + random.randint(0, 50)
+        
+        # Suaviza a transição de frequência
+        if current_frequency < target_frequency:
+            current_frequency += 5
+        elif current_frequency > target_frequency:
+            current_frequency -= 5
+        
+        # Aplica a frequência ao buzzer com volume moderado
+        buzzer.freq(int(current_frequency))
+        buzzer.duty_u16(32768)  # 50% duty cycle para volume moderado
 
 def set_pixel(x, y, color):
     """Acende o LED na posição (x,y) com RGB"""
@@ -120,7 +155,7 @@ def apply_brightness(color, brightness):
     )
 
 def button_handler(pin):
-    global game_active, score, player_x, player_y, cars, should_generate_cars, game_over
+    global game_active, score, player_x, player_y, cars, should_generate_cars, game_over, engine_sound_enabled
     
     if not debounce():
         return
@@ -128,6 +163,7 @@ def button_handler(pin):
     if not game_active:
         game_active = True
         game_over = False
+        engine_sound_enabled = True
         show_number(3, apply_brightness((0, 0, 255), 0.1))
         utime.sleep_ms(1000)  # Alterado de time para utime
         show_number(2, apply_brightness((0, 0, 255), 0.1))
@@ -147,6 +183,7 @@ def button_handler(pin):
     else:
         if game_over == True:
             game_active = False
+            engine_sound_enabled = False
             show_game_over()
 
 botao_b.irq(trigger=Pin.IRQ_FALLING, handler=button_handler)
@@ -204,6 +241,7 @@ def move_cars():
         should_generate_cars = not should_generate_cars
         last_car_generation = current_time
     
+    update_engine_sound()
     update_display()
     draw_game_state()
 
@@ -213,6 +251,9 @@ def update_display():
     oled.show()
 
 def show_game_over():
+    global engine_sound_enabled
+    engine_sound_enabled = False
+    buzzer.duty_u16(0)
     np.fill((0, 0, 0))
     np.write()
     oled.fill(0)
@@ -220,6 +261,9 @@ def show_game_over():
     oled.show()
 
 def show_win_message():
+    global engine_sound_enabled
+    engine_sound_enabled = False
+    buzzer.duty_u16(0)
     for _ in range(5):
         np.fill((0, 0, 64))
         np.write()
