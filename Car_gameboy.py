@@ -159,11 +159,11 @@ def move_cars():
             return
     
     # Geração de novos carros (a cada 1s após a primeira fileira)
-    if initial_cars_generated and current_time - last_car_generation >= 1000:
+    if initial_cars_generated and current_time - last_car_generation >= 500:
         if should_generate_cars:
             generate_subsequent_cars()
         should_generate_cars = not should_generate_cars
-        last_car_generation = current_time + 500
+        last_car_generation = current_time
     
     update_display()
     draw_game_state()
