@@ -37,7 +37,7 @@ score = 100
 game_active = False
 cars = []
 last_car_move = 0
-last_car_generation = 0
+global last_car_generation = 0
 should_generate_cars = True
 
 # Função otimizada para desenhar o estado do jogo sem piscar
