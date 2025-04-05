@@ -1,7 +1,7 @@
 from machine import Pin, ADC, SoftI2C, PWM
 from ssd1306 import SSD1306_I2C
 import neopixel
-import time
+import utime  # Alterado de time para utime
 import random
 import machine
 
@@ -104,7 +104,7 @@ def draw_game_state():
 
 def debounce():
     global last_button_time
-    current_time = time.ticks_ms()
+    current_time = utime.ticks_ms()  # Alterado de time para utime
     if current_time - last_button_time < DEBOUNCE_TIME:
         return False
     last_button_time = current_time
@@ -128,11 +128,11 @@ def button_handler(pin):
     if not game_active:
         game_active = True
         show_number(3, apply_brightness((0, 0, 255), 0.1))
-        time.sleep_ms(1000)
+        utime.sleep_ms(1000)  # Alterado de time para utime
         show_number(2, apply_brightness((0, 0, 255), 0.1))
-        time.sleep_ms(1000)
+        utime.sleep_ms(1000)  # Alterado de time para utime
         show_number(1, apply_brightness((0, 0, 255), 0.1))
-        time.sleep_ms(1000)
+        utime.sleep_ms(1000)  # Alterado de time para utime
         score = 100
         player_x = 2
         player_y = 4
@@ -165,7 +165,7 @@ def generate_subsequent_cars():
 def move_cars():
     global cars, game_active, score, last_car_move, should_generate_cars, last_car_generation, game_over
     
-    current_time = time.ticks_ms()
+    current_time = utime.ticks_ms()  # Alterado de time para utime
     
     if current_time - last_car_move >= 500:
         last_car_move = current_time
@@ -225,16 +225,16 @@ def show_win_message():
         oled.fill(0)
         oled.text("Voce ganhou!", 20, 20)
         oled.show()
-        time.sleep(0.5)
+        utime.sleep(0.5)  # Alterado de time para utime
         np.fill((0, 0, 0))
         np.write()
-        time.sleep(0.5)
+        utime.sleep(0.5)  # Alterado de time para utime
 
 def game_loop():
     while True:
         if game_active:
             move_cars()
-        time.sleep(0.05)
+        utime.sleep(0.05)  # Alterado de time para utime
 
 # Configura interrupção do joystick
 joystick_timer = machine.Timer()
