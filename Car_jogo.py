@@ -4,6 +4,7 @@ import neopixel
 import utime  # Alterado de time para utime
 import random
 import machine
+import math
 
 # Configurações iniciais
 np = neopixel.NeoPixel(Pin(7), 25)
@@ -91,35 +92,42 @@ def update_engine_sound():
     
     current_time = utime.ticks_ms()
     
-    # Atualiza o som a cada 30ms para maior responsividade
-    if current_time - last_sound_update > 30:
+    # Atualiza a cada 50ms para manter um som mais constante
+    if current_time - last_sound_update > 50:
         last_sound_update = current_time
         
-        # Calcula RPM baseado na posição e movimento (2000-5000 RPM convertido para frequência)
-        engine_rpm = 2000 + abs(player_x - 2) * 800 + random.randint(0, 300)
+        # Faixa de frequência mais grave (80Hz-400Hz)
+        base_freq = 80  # Frequência mínima (mais grave)
         
-        # Converte RPM para frequência audível (2kHz-5kHz)
-        target_frequency = 1500 + int(engine_rpm * 0.7)
+        # Calcula variação baseada na posição e movimento
+        position_factor = abs(player_x - 2) * 30  # 0 a 60
+        movement_factor = 0
         
-        # Suaviza a transição com incremento dinâmico
-        freq_diff = target_frequency - current_frequency
-        step = max(10, abs(freq_diff) // 5)  # Passo adaptativo
+        # Adiciona variação quando o jogador se move
+        if player_x != 2 or player_y != 4:
+            movement_factor = 50 + random.randint(0, 30)
         
+        target_frequency = base_freq + position_factor + movement_factor
+        
+        # Suaviza a transição
         if current_frequency < target_frequency:
-            current_frequency = min(current_frequency + step, target_frequency)
-        else:
-            current_frequency = max(current_frequency - step, target_frequency)
+            current_frequency = min(current_frequency + 5, target_frequency)
+        elif current_frequency > target_frequency:
+            current_frequency = max(current_frequency - 5, target_frequency)
         
-        # Aplica a frequência com volume moderado (50% duty cycle)
-        buzzer.freq(current_frequency)
-        buzzer.duty_u16(32768)  # 50% de volume
+        # Aplica a frequência com volume moderado
+        buzzer.freq(int(current_frequency))
+        
+        # Efeito de ronco - variação no volume
+        volume = 10000 + int(math.sin(utime.ticks_ms() / 200) * 10000)
+        buzzer.duty_u16(volume)
 
-        # Adiciona um efeito de "pulsação" do motor
-        if random.random() < 0.2:  # 20% de chance de pequena variação
-            buzzer.freq(current_frequency + random.randint(-50, 50))
-            buzzer.duty_u16(49152)  # Aumenta volume momentaneamente
-            utime.sleep_ms(10)
-            buzzer.duty_u16(32768)  # Volta ao volume normal
+        # Efeito aleatório de "arrancada"
+        if random.random() < 0.1:  # 10% de chance
+            buzzer.freq(int(current_frequency * 1.2))
+            buzzer.duty_u16(30000)
+            utime.sleep_ms(30)
+            buzzer.freq(int(current_frequency))
 
 def set_pixel(x, y, color):
     """Acende o LED na posição (x,y) com RGB"""
