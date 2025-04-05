@@ -65,7 +65,7 @@ should_generate_cars = True
 game_over = False
 
 # Variáveis de debounce
-DEBOUNCE_TIME = 300
+DEBOUNCE_TIME = 500
 last_button_time = 0
 
 # Função para embaralhar manualmente (substitui o random.shuffle)
@@ -127,6 +127,7 @@ def button_handler(pin):
     
     if not game_active:
         game_active = True
+        game_over = False
         show_number(3, apply_brightness((0, 0, 255), 0.1))
         utime.sleep_ms(1000)  # Alterado de time para utime
         show_number(2, apply_brightness((0, 0, 255), 0.1))
