@@ -151,12 +151,17 @@ def move_cars():
     draw_game_state()  # Desenha o novo estado
 
 def generate_cars():
-    positions = [0,1,2,3,4]
-    random.shuffle(positions)
-    new_cars = min(random.randint(1,3), 5-len(cars))
-    for pos in positions[:new_cars]:
-        if not any(c[1] == pos for c in cars):
-            cars.append([0, pos])
+    global cars
+    positions = [0, 1, 2, 3, 4]
+    
+    # Embaralha simplesmente selecionando posições aleatórias
+    num_cars = random.randint(1, 3)
+    for _ in range(num_cars):
+        if not positions:
+            break
+        pos = random.choice(positions)
+        positions.remove(pos)
+        cars.append([0, pos])
 
 def update_display():
     oled.fill(0)
