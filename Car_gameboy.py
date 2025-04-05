@@ -82,7 +82,7 @@ def button_handler(pin):
         cars = []
         should_generate_cars = True
         initial_cars_generated = False
-        generate_initial_cars()
+        generate_subsequent_cars()
         oled.fill(0)
         oled.text("Pontos: 100", 0, 0)
         oled.show()
@@ -92,13 +92,6 @@ def button_handler(pin):
         show_game_over()
 
 botao_b.irq(trigger=Pin.IRQ_FALLING, handler=button_handler)
-
-def generate_initial_cars():
-    global cars, initial_cars_generated
-    positions = manual_shuffle([0, 1, 2, 3, 4])
-    num_cars = random.randint(1, 3)
-    cars = [[0, pos] for pos in positions[:num_cars]]
-    initial_cars_generated = True
 
 def generate_subsequent_cars():
     global cars
@@ -146,7 +139,7 @@ def move_cars():
             return
     
     # Geração de novos carros
-    if initial_cars_generated and current_time - last_car_generation >= 1000:
+    if current_time - last_car_generation >= 500:
         if should_generate_cars:
             generate_subsequent_cars()
         should_generate_cars = not should_generate_cars
