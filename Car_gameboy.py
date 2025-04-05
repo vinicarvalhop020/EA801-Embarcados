@@ -17,6 +17,29 @@ LED_MATRIX = [
     [4, 3, 2, 1, 0]
 ]
 
+COUNTDOWN_PATTERNS = {
+    3: [
+        [1, 1, 1, 1, 1],
+        [0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1],
+        [0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1]
+    ],
+    2: [
+        [1, 1, 1, 1, 1],
+        [0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0],
+        [1, 1, 1, 1, 1]
+    ],
+    1: [
+        [0, 0, 1, 0, 0],
+        [0, 1, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 1, 1, 1, 0]
+    ]
+}
 # Display OLED
 i2c = SoftI2C(scl=Pin(15), sda=Pin(14))
 oled = SSD1306_I2C(128, 64, i2c)
@@ -39,7 +62,6 @@ cars = []
 last_car_move = 0
 last_car_generation = 0
 should_generate_cars = True
-initial_cars_generated = False
 
 # Variáveis de debounce
 DEBOUNCE_TIME = 300
@@ -51,6 +73,25 @@ def manual_shuffle(arr):
         j = random.randint(0, i)
         arr[i], arr[j] = arr[j], arr[i]
     return arr
+
+def set_pixel(x, y, color):
+    """Acende o LED na posição (x,y) com RGB"""
+    if 0 <= x < 5 and 0 <= y < 5:
+        np[LED_MATRIX[y][x]] = color
+
+def show_number(number, color):
+    """Desenha um número na matriz LED"""
+    pattern = COUNTDOWN_PATTERNS.get(number)
+    if not pattern:
+        return
+    
+    for y in range(5):
+        for x in range(5):
+            if pattern[y][x]:
+                set_pixel(x, y, color)
+            else:
+                set_pixel(x, y, (0, 0, 0))
+    np.write()
 
 def draw_game_state():
     np.fill((0, 0, 0))
@@ -68,20 +109,34 @@ def debounce():
     last_button_time = current_time
     return True
 
+def apply_brightness(color, brightness):
+    """Ajusta o brilho de uma cor RGB (0-255)"""
+    r, g, b = color
+    return (
+        int(r * brightness),
+        int(g * brightness),
+        int(b * brightness)
+    )
+
 def button_handler(pin):
-    global game_active, score, player_x, player_y, cars, should_generate_cars, initial_cars_generated
+    global game_active, score, player_x, player_y, cars, should_generate_cars
     
     if not debounce():
         return
     
     if not game_active:
+        show_number(3, apply_brightness((0, 0, 255), 0.1))
+        time.sleep_ms(500)
+        show_number(2, apply_brightness((0, 0, 255), 0.1))
+        time.sleep_ms(500)
+        show_number(1, apply_brightness((0, 0, 255), 0.1))
+        time.sleep_ms(500)
         game_active = True
         score = 100
         player_x = 2
         player_y = 4
         cars = []
         should_generate_cars = True
-        initial_cars_generated = False
         generate_subsequent_cars()
         oled.fill(0)
         oled.text("Pontos: 100", 0, 0)
@@ -173,7 +228,6 @@ def show_win_message():
         time.sleep(0.5)
 
 def game_loop():
-    time.sleep(1)
     while True:
         if game_active:
             move_cars()
