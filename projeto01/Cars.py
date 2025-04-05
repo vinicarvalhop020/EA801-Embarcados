@@ -62,6 +62,7 @@ cars = []
 last_car_move = 0
 last_car_generation = 0
 should_generate_cars = True
+game_over = False
 
 # Variáveis de debounce
 DEBOUNCE_TIME = 300
@@ -119,39 +120,41 @@ def apply_brightness(color, brightness):
     )
 
 def button_handler(pin):
-    global game_active, score, player_x, player_y, cars, should_generate_cars
+    global game_active, score, player_x, player_y, cars, should_generate_cars, game_over
     
     if not debounce():
         return
     
     if not game_active:
-        show_number(3, apply_brightness((0, 0, 255), 0.1))
-        time.sleep_ms(500)
-        show_number(2, apply_brightness((0, 0, 255), 0.1))
-        time.sleep_ms(500)
-        show_number(1, apply_brightness((0, 0, 255), 0.1))
-        time.sleep_ms(500)
         game_active = True
+        show_number(3, apply_brightness((0, 0, 255), 0.1))
+        time.sleep_ms(1000)
+        show_number(2, apply_brightness((0, 0, 255), 0.1))
+        time.sleep_ms(1000)
+        show_number(1, apply_brightness((0, 0, 255), 0.1))
+        time.sleep_ms(1000)
         score = 100
         player_x = 2
         player_y = 4
         cars = []
-        should_generate_cars = True
+        should_generate_cars = False
         generate_subsequent_cars()
         oled.fill(0)
         oled.text("Pontos: 100", 0, 0)
         oled.show()
         draw_game_state()
     else:
-        game_active = False
-        show_game_over()
+        if game_over == True:
+            game_active = False
+            show_game_over()
+            game_loop()
 
 botao_b.irq(trigger=Pin.IRQ_FALLING, handler=button_handler)
 
 def generate_subsequent_cars():
     global cars
     positions = manual_shuffle([0, 1, 2, 3, 4])
-    num_cars = random.randint(1, 3)
+    num_cars = random.randint(1, 4)
     
     new_cars = []
     for pos in positions[:num_cars]:
@@ -161,7 +164,7 @@ def generate_subsequent_cars():
     cars.extend(new_cars)
 
 def move_cars():
-    global cars, game_active, score, last_car_move, should_generate_cars, last_car_generation
+    global cars, game_active, score, last_car_move, should_generate_cars, last_car_generation, game_over
     
     current_time = time.ticks_ms()
     
@@ -172,6 +175,7 @@ def move_cars():
         for car in cars:
             if car[0] == player_y and car[1] == player_x:
                 game_active = False
+                game_over = True
                 show_game_over()
                 return
         

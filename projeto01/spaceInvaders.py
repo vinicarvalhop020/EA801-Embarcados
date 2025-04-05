@@ -22,6 +22,7 @@ i2c = SoftI2C(scl=Pin(OLED_SCL), sda=Pin(OLED_SDA))
 oled = SSD1306_I2C(128, 64, i2c)
 joy_button = Pin(22, Pin.IN, Pin.PULL_UP)
 brightness = 0.1
+match = 1
 
 
 # --- Variáveis do Jogo ---
@@ -35,7 +36,11 @@ MATRIX_MAP = [
 
 nave_pos = [2, 4]  # [x, y] - Linha inferior (4)
 tiros = []         # Lista de tiros ativos
-inimigos = [[i, 0] for i in range(5)]  # Inimigos na linha superior
+
+inimigos_1 = [[i, 0] for i in range(5)]  # Inimigos na linha superior
+inimigos_2 = []
+inimigos_3 = []
+
 direcao_inimigos = 1  # 1 = direita, -1 = esquerda
 game_speed = 0.95
 score = 0
@@ -64,20 +69,26 @@ def clear_matrix():
         np[i] = (0, 0, 0)
 
 def draw_game():
-    global brightness
+    global brightness, inimigos_1, inimigos_2, inimigos_3
     """Desenha todos os elementos na matriz"""
     clear_matrix()
     
     # Desenha nave (roxo)
-    set_pixel(nave_pos[0], nave_pos[1], apply_brightness((255, 0, 255),brightness))
+    set_pixel(nave_pos[0], nave_pos[1], apply_brightness((50, 200, 133),brightness))
     
     # Desenha tiros (azul)
     for tiro in tiros:
         set_pixel(tiro[0], tiro[1], apply_brightness((255, 255, 0),brightness))
     
     # Desenha inimigos (vermelho)
-    for inimigo in inimigos:
+    for inimigo in inimigos_1:
         set_pixel(inimigo[0], inimigo[1], apply_brightness((255, 0, 0),brightness))
+    
+    for inimigo in inimigos_2:
+        set_pixel(inimigo[0], inimigo[1], apply_brightness((0, 255, 0),brightness))
+    
+    for inimigo in inimigos_3:
+        set_pixel(inimigo[0], inimigo[1], apply_brightness((0, 0, 255),brightness))
     
     np.write()
 
@@ -111,71 +122,110 @@ def mover_nave():
 
 def mover_inimigos():
     """Movimenta os inimigos corretamente e verifica fim de jogo"""
-    global direcao_inimigos, game_state, vidas
+    global direcao_inimigos, game_state, vidas, inimigos_1, inimigos_2, inimigos_3
 
     # Verifica se algum inimigo atingiu a borda
     mudar_direcao = False
+
     if direcao_inimigos == 1:
-        if any(inimigo[0] >= 4 for inimigo in inimigos):
+        if any(inimigo[0] >= 4 for inimigo in inimigos_1):
             mudar_direcao = True
-    elif direcao_inimigos == -1:
-        if any(inimigo[0] <= 0 for inimigo in inimigos):
+        if any(inimigo[0] >= 4 for inimigo in inimigos_2):
+            mudar_direcao = True
+        if any(inimigo[0] >= 4 for inimigo in inimigos_3):
             mudar_direcao = True
 
+    elif direcao_inimigos == -1:
+        if any(inimigo[0] <= 0 for inimigo in inimigos_1):
+            mudar_direcao = True
+        if any(inimigo[0] <= 0 for inimigo in inimigos_2):
+            mudar_direcao = True
+        if any(inimigo[0] <= 0 for inimigo in inimigos_3):
+            mudar_direcao = True
+        
     if mudar_direcao:
         direcao_inimigos *= -1
-        for inimigo in inimigos:
+        for inimigo in inimigos_1:
+            inimigo[1] += 1  # Desce uma linha
+        for inimigo in inimigos_2:
+            inimigo[1] += 1  # Desce uma linha
+        for inimigo in inimigos_3:
             inimigo[1] += 1  # Desce uma linha
     else:
-        for inimigo in inimigos:
+        for inimigo in inimigos_1:
+            inimigo[0] += direcao_inimigos  # Move lateralmente
+        for inimigo in inimigos_2:
+            inimigo[0] += direcao_inimigos  # Move lateralmente
+        for inimigo in inimigos_3:
             inimigo[0] += direcao_inimigos  # Move lateralmente
 
     # Verifica se algum inimigo chegou ao fundo
-    if any(inimigo[1] >= 4 for inimigo in inimigos):
-        vidas -= 1
-        if vidas <= 0:
-            game_state = "GAME_OVER"
-        reset_positions()
+    # Versão corrigida:
+    if any(inimigo[1] >= 4 for grupo in [inimigos_1, inimigos_2, inimigos_3] for inimigo in grupo):
+            vidas -= 1
+            if vidas <= 0:
+                game_state = "GAME_OVER"
+            reset_positions()
 
 
 def verificar_colisoes():
     """Verifica colisões entre tiros e inimigos"""
-    global score, inimigos
+    global score, inimigos_1, inimigos_2, inimigos_3
     
     for tiro in tiros[:]:
-        for inimigo in inimigos[:]:
+        for inimigo in inimigos_1[:]:
             if tiro[0] == inimigo[0] and tiro[1] == inimigo[1]:
                 if tiro in tiros:  # Verifica se ainda está na lista
                     tiros.remove(tiro)
-                if inimigo in inimigos:
-                    inimigos.remove(inimigo)
+                if inimigo in inimigos_1:
+                    inimigos_1.remove(inimigo)
+                    score += 10
+                break  # Sai do laço interno para evitar erro
+
+    for tiro in tiros[:]:
+        for inimigo in inimigos_2[:]:
+            if tiro[0] == inimigo[0] and tiro[1] == inimigo[1]:
+                if tiro in tiros:  # Verifica se ainda está na lista
+                    tiros.remove(tiro)
+                if inimigo in inimigos_2:
+                    inimigos_2.remove(inimigo)
+                    score += 10
+                break  # Sai do laço interno para evitar erro
+    
+    for tiro in tiros[:]:
+        for inimigo in inimigos_3[:]:
+            if tiro[0] == inimigo[0] and tiro[1] == inimigo[1]:
+                if tiro in tiros:  # Verifica se ainda está na lista
+                    tiros.remove(tiro)
+                if inimigo in inimigos_3:
+                    inimigos_3.remove(inimigo)
                     score += 10
                 break  # Sai do laço interno para evitar erro
 
 
 def reset_positions():
-    global nave_pos, tiros, inimigos
+    global nave_pos, tiros, inimigos_1, inimigos_2,inimigos_3, match
     nave_pos = [2, 4]
     tiros = []
-    inimigos = []
-    for y in range(3):  # Adiciona 3 linhas
-        for x in range(5):
-            inimigos.append([x, y])
+    inimigos_1 = [[i, 0] for i in range(5)]
+    if match == 2:
+        inimigos_1 = [[i, 0] for i in range(5)]
+        inimigos_2 = [[i, 1] for i in range(5)]
+    if match >= 3:
+        inimigos_1 = [[i, 0] for i in range(5)]
+        inimigos_2 = [[i, 1] for i in range(5)]
+        inimigos_3 = [[i, 2] for i in range(5)]
+
 
 def reset_game():
-    global nave_pos, tiros, inimigos, score, vidas, game_state, game_speed
+    global nave_pos, tiros, inimigos, score, vidas, game_state, game_speed, match
     nave_pos = [2, 4]
     tiros = []
-    inimigos = []
-    for y in range(3):  # Adiciona 3 linhas
-        for x in range(5):
-            inimigos.append([x, y])
     score = 0
     vidas = 3
+    match = 1
     game_speed = 0.95
     game_state = "RUNNING"
-
-
 
 
 # --- Loop Principal ---
@@ -224,7 +274,8 @@ while True:
         draw_game()
         update_display()
 
-        if len(inimigos) == 0:  # Poucos inimigos restantes
+        if (len(inimigos_1) == 0 and len(inimigos_2) == 0 and len(inimigos_2) == 0): # Poucos inimigos restantes
+            match +=1
             reset_positions()
             # Aumenta dificuldade
             enemy_move_interval = max(300, int(enemy_move_interval * 0.9))
