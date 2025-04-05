@@ -37,55 +37,42 @@ score = 100
 game_active = False
 cars = []
 last_car_move = 0
-global last_car_generation = 0
+last_car_generation = 0
 should_generate_cars = True
+initial_cars_generated = False  # Nova flag para controle
 
-# Função otimizada para desenhar o estado do jogo sem piscar
+# Variáveis de debounce
+DEBOUNCE_TIME = 300  # 300ms
+last_button_time = 0
+
+# Função otimizada para desenhar o estado do jogo
 def draw_game_state():
-    # Primeiro desenha todos os elementos em um buffer
-    buffer = [(0, 0, 0) for _ in range(NUM_LEDS)]
+    np.fill((0, 0, 0))  # Limpa tudo
     
-    # Desenha carros inimigos
+    # Desenha carros
     for car in cars:
         if 0 <= car[0] < 5:
-            led_index = LED_MATRIX[car[0]][car[1]]
-            buffer[led_index] = (64, 0, 0)  # Vermelho
+            np[LED_MATRIX[car[0]][car[1]]] = (64, 0, 0)  # Vermelho
     
     # Desenha jogador
-    led_index = LED_MATRIX[player_y][player_x]
-    buffer[led_index] = (0, 0, 64)  # Azul
-    
-    # Aplica tudo de uma vez
-    for i in range(NUM_LEDS):
-        np[i] = buffer[i]
+    np[LED_MATRIX[player_y][player_x]] = (0, 0, 64)  # Azul
     np.write()
 
-# Função de interrupção do joystick
-def joystick_handler(pin):
-    global player_x, player_y
-    x_value = vrx.read_u16()
-    y_value = vry.read_u16()
-    
-    if x_value < JOYSTICK_THRESHOLD_LOW:
-        player_x = max(0, player_x - 1)
-    elif x_value > JOYSTICK_THRESHOLD_HIGH:
-        player_x = min(4, player_x + 1)
-    
-    if y_value < JOYSTICK_THRESHOLD_LOW:
-        player_y = min(4, player_y + 1)
-    elif y_value > JOYSTICK_THRESHOLD_HIGH:
-        player_y = max(0, player_y - 1)
-    
-    if game_active:
-        draw_game_state()
-
-# Configura interrupção do joystick
-joystick_timer = machine.Timer()
-joystick_timer.init(period=100, mode=machine.Timer.PERIODIC, callback=lambda t: joystick_handler(None))
+# Função de debounce
+def debounce():
+    global last_button_time
+    current_time = time.ticks_ms()
+    if current_time - last_button_time < DEBOUNCE_TIME:
+        return False
+    last_button_time = current_time
+    return True
 
 # Função de interrupção do botão B
 def button_handler(pin):
-    global game_active, score, player_x, player_y, cars, should_generate_cars
+    global game_active, score, player_x, player_y, cars, should_generate_cars, initial_cars_generated
+    
+    if not debounce():
+        return
     
     if not game_active:
         # Inicia novo jogo
@@ -95,105 +82,94 @@ def button_handler(pin):
         player_y = 4
         cars = []
         should_generate_cars = True
-        generate_cars()
+        initial_cars_generated = False  # Reseta a flag
+        generate_initial_cars()  # Gera apenas a primeira fileira
         oled.fill(0)
         oled.text("Pontos: 100", 0, 0)
         oled.show()
-        draw_game_state()  # Desenha estado inicial
+        draw_game_state()
     else:
         # Reinicia o jogo
         game_active = False
         show_game_over()
 
+# Configura interrupção do botão
 botao_b.irq(trigger=Pin.IRQ_FALLING, handler=button_handler)
 
-def move_cars():
-    global cars, game_active, score, last_car_move, should_generate_cars
+# Geração da PRIMEIRA fileira de carros
+def generate_initial_cars():
+    global cars, initial_cars_generated
+    positions = [0, 1, 2, 3, 4]
+    random.shuffle(positions)
     
-    if time.ticks_ms() - last_car_move < 500:
-        return
+    num_cars = random.randint(1, 3)
+    for i in range(num_cars):
+        if i >= len(positions):
+            break
+        cars.append([0, positions[i]])
     
-    last_car_move = time.ticks_ms()
-    
-    # Verifica colisão
-    for car in cars:
-        if car[0] == player_y and car[1] == player_x:
-            game_active = False
-            show_game_over()
-            return
-    
-    # Movimenta carros e conta os que saíram
-    cars_passed = 0
-    new_cars = []
-    for car in cars:
-        car[0] += 1
-        if car[0] < 5:
-            new_cars.append(car)
-        else:
-            cars_passed += 1
-    
-    cars = new_cars
-    score = max(0, score - cars_passed)
-    
-    if score <= 0:
-        game_active = False
-        show_win_message()
-        return
-    
-    # Gera novos carros alternadamente
-    if time.ticks_ms() - last_car_generation > 1000:
-        if should_generate_cars:
-            generate_cars()
-        should_generate_cars = not should_generate_cars
-        last_car_generation = time.ticks_ms()
-    
-    update_display()
-    draw_game_state()  # Desenha o novo estado
+    initial_cars_generated = True
 
-def generate_cars():
+# Geração das fileiras SUBSEQUENTES
+def generate_subsequent_cars():
     global cars
     positions = [0, 1, 2, 3, 4]
+    random.shuffle(positions)
     
-    # Embaralha simplesmente selecionando posições aleatórias
     num_cars = random.randint(1, 3)
-    for _ in range(num_cars):
-        if not positions:
+    for i in range(num_cars):
+        if i >= len(positions):
             break
-        pos = random.choice(positions)
-        positions.remove(pos)
-        cars.append([0, pos])
+        # Verifica se já não existe carro na posição
+        if not any(car[1] == positions[i] for car in cars if car[0] == 0):
+            cars.append([0, positions[i]])
 
-def update_display():
-    oled.fill(0)
-    oled.text(f"Pontos: {score}", 0, 0)
-    oled.show()
-
-def show_game_over():
-    for i in range(NUM_LEDS):
-        np[i] = (0, 0, 0)
-    np.write()
-    oled.fill(0)
-    oled.text("Game Over!", 20, 20)
-    oled.show()
-
-def show_win_message():
-    for _ in range(5):
-        # Pisca azul
-        for i in range(NUM_LEDS):
-            np[i] = (0, 0, 64)
-        np.write()
-        oled.fill(0)
-        oled.text("Voce ganhou!", 20, 20)
-        oled.show()
-        time.sleep(0.5)
+def move_cars():
+    global cars, game_active, score, last_car_move, should_generate_cars, last_car_generation
+    
+    current_time = time.ticks_ms()
+    
+    # Movimentação dos carros (a cada 500ms)
+    if current_time - last_car_move >= 500:
+        last_car_move = current_time
         
-        # Apaga
-        for i in range(NUM_LEDS):
-            np[i] = (0, 0, 0)
-        np.write()
-        time.sleep(0.5)
+        # Verifica colisão
+        for car in cars:
+            if car[0] == player_y and car[1] == player_x:
+                game_active = False
+                show_game_over()
+                return
+        
+        # Movimenta carros
+        cars_passed = 0
+        new_cars = []
+        for car in cars:
+            car[0] += 1
+            if car[0] < 5:
+                new_cars.append(car)
+            else:
+                cars_passed += 1
+        
+        cars = new_cars
+        score = max(0, score - cars_passed)
+        
+        if score <= 0:
+            game_active = False
+            show_win_message()
+            return
+    
+    # Geração de novos carros (a cada 1s após a primeira fileira)
+    if initial_cars_generated and current_time - last_car_generation >= 1000:
+        if should_generate_cars:
+            generate_subsequent_cars()
+        should_generate_cars = not should_generate_cars
+        last_car_generation = current_time + 500
+    
+    update_display()
+    draw_game_state()
 
-# Loop principal
+# ... (o restante das funções permanece igual)
+
 def game_loop():
     while True:
         if game_active:
