@@ -126,17 +126,17 @@ def button_handler(pin):
     
     if not game_active:
         show_number(3, apply_brightness((0, 0, 255), 0.1))
-        time.sleep_ms(500)
+        time.sleep_ms(1000)
         show_number(2, apply_brightness((0, 0, 255), 0.1))
-        time.sleep_ms(500)
+        time.sleep_ms(1000)
         show_number(1, apply_brightness((0, 0, 255), 0.1))
-        time.sleep_ms(500)
+        time.sleep_ms(1000)
         game_active = True
         score = 100
         player_x = 2
         player_y = 4
         cars = []
-        should_generate_cars = True
+        should_generate_cars = False
         generate_subsequent_cars()
         oled.fill(0)
         oled.text("Pontos: 100", 0, 0)
