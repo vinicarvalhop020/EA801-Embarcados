@@ -173,6 +173,7 @@ def show_win_message():
         time.sleep(0.5)
 
 def game_loop():
+    time.sleep(1)
     while True:
         if game_active:
             move_cars()
