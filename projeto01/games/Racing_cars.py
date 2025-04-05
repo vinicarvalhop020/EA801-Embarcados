@@ -48,6 +48,13 @@ VICTORY_SOUND = [
     (659, 300),  # Mi
     (784, 400)   # Sol agudo
 ]
+
+GAMEOVER_SOUND = [
+    (165, 400),  # Mi
+    (131, 600),  # Dó
+    (110, 800)   # Lá mais grave
+]
+
 # Display OLED
 i2c = SoftI2C(scl=Pin(15), sda=Pin(14))
 oled = SSD1306_I2C(128, 64, i2c)
@@ -279,12 +286,34 @@ def update_display():
 def show_game_over():
     global engine_sound_enabled
     engine_sound_enabled = False
-    buzzer.duty_u16(0)
-    np.fill((0, 0, 0))
+    buzzer.duty_u16(0)  # Desliga o som do motor
+    
+    # Efeito visual
+    np.fill((64, 0, 0))  # Vermelho
     np.write()
     oled.fill(0)
     oled.text("Game Over!", 20, 20)
+    oled.text("Pressione B", 20, 40)
     oled.show()
+    
+    # Toca o som de Game Over
+    for note, duration in GAMEOVER_SOUND:
+        buzzer.freq(note)
+        buzzer.duty_u16(49152)  # 75% volume para mais impacto
+        utime.sleep_ms(duration)
+        buzzer.duty_u16(0)  # Pausa curta entre notas
+        utime.sleep_ms(50)
+    
+    # Pisca os LEDs vermelhos
+    for _ in range(3):
+        np.fill((64, 0, 0))
+        np.write()
+        utime.sleep_ms(200)
+        np.fill((0, 0, 0))
+        np.write()
+        utime.sleep_ms(200)
+    
+    buzzer.duty_u16(0)  # Garante que o buzzer seja desligado
 
 def show_win_message():
     global engine_sound_enabled
