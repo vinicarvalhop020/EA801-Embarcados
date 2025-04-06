@@ -40,7 +40,7 @@ inimigos_1 = [[i, 0] for i in range(5)]  # Inimigos vermelhos (linha 0)
 inimigos_2 = []  # Inimigos verdes (aparecem depois)
 inimigos_3 = []  # Inimigos azuis (aparecem depois)
 match = 1
-game_state = "START"  # Começa no estado START
+game_state = "RUNNING"  # Começa no estado START
 brightness = 0.1
 match = 1
 direcao_inimigos = 1  # 1 = direita, -1 = esquerda
@@ -74,7 +74,7 @@ def process_sounds():
     if current_sound is None and sound_queue:
         current_sound = sound_queue.pop(0)  # Armazena (frequency, duration)
         buzzer.freq(current_sound[0])  # current_sound[0] é a frequency
-        buzzer.duty_u16(2000)
+        buzzer.duty_u16(1000)
         sound_start_time = now
 
 
@@ -438,20 +438,19 @@ nave_move_interval = 200  # A nave só pode se mover a cada 200 ms
 
 # --- Inicialização ---
 
+show_start_screen()
+while button_b.value() == 1:  # Espera pressionar o botão B
+    time.sleep(0.1)
+start_game()
+
+
 while True:
+    print(game_state)
     now = utime.ticks_ms()
-    
-    # Processa efeitos e sons primeiro
     process_game_effects()
-    process_sounds()
-    
-    if game_state == "START":
-        show_start_screen()
-        # Aguarda botão para começar
-        if button_b.value() == 0:
-            start_game()
-    
-    elif game_state == "RUNNING":
+    process_sounds()  # Gerencia a reprodução dos sons
+     
+    if game_state == "RUNNING":
         # Movimento da nave
         if utime.ticks_diff(now, last_nave_move) >= nave_move_interval:
             last_nave_move = now
@@ -480,4 +479,8 @@ while True:
             reset_positions()
             enemy_move_interval = max(300, int(enemy_move_interval * 0.9))
 
-        utime.sleep_ms(10)
+  
+
+       
+    
+    
