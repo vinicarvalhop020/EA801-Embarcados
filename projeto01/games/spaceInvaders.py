@@ -47,37 +47,42 @@ direcao_inimigos = 1  # 1 = direita, -1 = esquerda
 game_speed = 0.95
 score = 0
 vidas = 3
-sound_queue = []
-sound_start_time = 0
-current_sound = None
-effect_step = 0
+first_move = True  # Adicione isso com as outras variáveis globais
 
-# --- Funções do Jogo ---
+
+# Modifique estas variáveis globais
+sound_queue = []
+current_sound = None
+sound_start_time = 0
+MAX_SOUND_QUEUE = 3  # Limite máximo de sons na fila
+
 def play_tone_non_blocking(frequency, duration):
-    """Adiciona um som à fila de reprodução"""
-    sound_queue.append((frequency, duration))
+    """Adiciona um som à fila de reprodução com limite de tamanho"""
+    if len(sound_queue) < MAX_SOUND_QUEUE:
+        sound_queue.append((frequency, duration))
 
 def process_sounds():
-    """Gerencia a reprodução dos sons na fila (deve ser chamado no loop principal)"""
+    """Gerencia a reprodução dos sons na fila de forma mais eficiente"""
     global current_sound, sound_start_time
     
     now = utime.ticks_ms()
     
     # Se está tocando um som, verifica se já terminou
     if current_sound is not None:
-        # duration é armazenado junto com frequency na fila como uma tupla
-        if utime.ticks_diff(now, sound_start_time) >= current_sound[1]:  # current_sound[1] é a duration
+        elapsed = utime.ticks_diff(now, sound_start_time)
+        if elapsed >= current_sound[1]:  # current_sound[1] é a duration
             buzzer.duty_u16(0)  # Desliga o buzzer
             current_sound = None
     
     # Se não está tocando nada e há sons na fila
     if current_sound is None and sound_queue:
-        current_sound = sound_queue.pop(0)  # Armazena (frequency, duration)
+        # Pega o som mais recente (em vez do mais antigo)
+        current_sound = sound_queue.pop(-1)
         buzzer.freq(current_sound[0])  # current_sound[0] é a frequency
-        buzzer.duty_u16(1000)
+        buzzer.duty_u16(2000)
         sound_start_time = now
-
-
+        # Limpa a fila para evitar acúmulo
+        sound_queue.clear()
 
 def ship_sounds(action):
     """Efeitos sonoros melhorados"""
@@ -96,6 +101,7 @@ def ship_sounds(action):
     elif action == "movimento":
         # Feedback sutil ao mover nave
         play_tone_non_blocking(500, 15)
+    
 
 def game_sounds(action):
     """Sons de jogo melhorados"""
@@ -111,6 +117,8 @@ def game_sounds(action):
         play_tone_non_blocking(523, 200)  # Dó
         play_tone_non_blocking(392, 300)  # Sol grave
 
+    elif action == "hit":
+        play_tone_non_blocking(130, 300)  # Dó grave
 
 def start_game():
     global game_state, effect_start_time, effect_step
@@ -165,7 +173,7 @@ def show_number(number, color):
     np.write()
 
 def process_game_effects():
-    global game_state, effect_start_time, effect_step
+    global game_state, effect_start_time, effect_step, first_move
     
     now = utime.ticks_ms()
     
@@ -218,6 +226,7 @@ def process_game_effects():
             clear_matrix()
             reset_game()
             game_state = "RUNNING"
+            first_move = True  # Indica que é o primeiro movimento após a contagem
 
 
 def show_start_screen():
@@ -273,8 +282,9 @@ def draw_game():
 def update_display():
     """Atualiza o display OLED"""
     oled.fill(0)
-    oled.text(f"Score: {score}", 0, 0)
+    oled.text(f"Pontos: {score}", 0, 0)
     oled.text(f"Vidas: {vidas}", 0, 20)
+    oled.text(f"Fase {match}", 0, 30)
     oled.show()
 
 
@@ -301,8 +311,12 @@ def mover_nave():
 
 def mover_inimigos():
     """Movimenta os inimigos corretamente e verifica fim de jogo"""
-    global direcao_inimigos, game_state, vidas, inimigos_1, inimigos_2, inimigos_3
+    global direcao_inimigos, game_state, vidas, inimigos_1, inimigos_2, inimigos_3, first_move
 
+    if first_move:
+        first_move = False
+        return
+    
     # Verifica se algum inimigo atingiu a borda
     mudar_direcao = False
 
@@ -342,6 +356,7 @@ def mover_inimigos():
     # Versão corrigida:
     if any(inimigo[1] >= 4 for grupo in [inimigos_1, inimigos_2, inimigos_3] for inimigo in grupo):
             vidas -= 1
+            game_sounds("hit")
             if vidas <= 0:
                 lose_game()
             reset_positions()
@@ -442,7 +457,6 @@ show_start_screen()
 while button_b.value() == 1:  # Espera pressionar o botão B
     time.sleep(0.1)
 start_game()
-
 
 while True:
     print(game_state)
