@@ -372,6 +372,13 @@ def show_win_message():
 
     buzzer.duty_u16(0)  # Garante que o buzzer seja desligado
 
+def show_start_screen():
+    """Tela inicial no OLED"""
+    oled.fill(0)
+    oled.text("RACING CARS", 5, 20)
+    oled.text("Pressione B", 25, 40)
+    oled.show()
+
 def game_loop():
     while True:
         if game_active:
@@ -409,4 +416,5 @@ def joystick_handler(pin):
         draw_game_state()
 
 # Inicia o jogo
+show_start_screen()
 game_loop()

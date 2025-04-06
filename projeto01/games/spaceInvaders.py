@@ -27,8 +27,6 @@ last_score = -1
 start_defeat = False
 
 
-
-
 # --- Variáveis do Jogo ---
 MATRIX_MAP = [  
     [24, 23, 22, 21, 20],  # Linha 0 (topo)
@@ -52,9 +50,10 @@ score = 0
 first_move = True  
 lose_state = False
 reset = False
+tiro_on = False
+vidas = 3
 
 
-# Modifique estas variáveis globais
 sound_queue = []
 current_sound = None
 sound_start_time = 0
@@ -64,35 +63,6 @@ def play_tone_non_blocking(frequency, duration):
     """Adiciona um som à fila de reprodução com limite de tamanho"""
     if len(sound_queue) < MAX_SOUND_QUEUE:
         sound_queue.append((frequency, duration))
-
-def process_sounds():
-    """Gerencia a reprodução dos sons na fila de forma mais eficiente"""
-    global current_sound, sound_start_time, start_defeat
-    
-    now = utime.ticks_ms()
-
-    if start_defeat: #prioridade se é start ou defeat
-        current_sound = sound_queue.pop(-1)
-        buzzer.freq(current_sound[0])  # current_sound[0] é a frequency
-        buzzer.duty_u16(2000)
-
-    # Se está tocando um som, verifica se já terminou
-    if current_sound is not None:
-        elapsed = utime.ticks_diff(now, sound_start_time)
-        if elapsed >= current_sound[1]:  # current_sound[1] é a duration
-            buzzer.duty_u16(0)  # Desliga o buzzer
-            current_sound = None
-    
-    # Se não está tocando nada e há sons na fila
-    if current_sound is None and sound_queue:
-        # Pega o som mais recente (em vez do mais antigo)
-        current_sound = sound_queue.pop(-1)
-        buzzer.freq(current_sound[0])  # current_sound[0] é a frequency
-        buzzer.duty_u16(2000)
-        sound_start_time = now
-        # Limpa a fila para evitar acúmulo
-        sound_queue.clear()
-
 
 def ship_sounds(action):
     """Efeitos sonoros melhorados"""
@@ -111,34 +81,98 @@ def ship_sounds(action):
     elif action == "movimento":
         # Feedback sutil ao mover nave
         play_tone_non_blocking(500, 15)
+
+game_over_melody = [
+    (523, 200), (466, 200), (440, 200), (392, 250), (349, 250),
+    (330, 300), (294, 350), (262, 400), (247, 450), (220, 500), (196, 600)
+]
+current_note_index = -1
+note_start_time = 0
+is_playing_melody = False
+
+def play_game_over_sound():
+    """Inicia a melodia de game over (não bloqueante)"""
+    global current_note_index, note_start_time, is_playing_melody
     
+    buzzer.duty_u16(0)  # Garante que o buzzer está desligado
+    current_note_index = 0
+    note_start_time = utime.ticks_ms()
+    is_playing_melody = True
+    
+    # Toca a primeira nota
+    freq, duration = game_over_melody[current_note_index]
+    buzzer.freq(freq)
+    buzzer.duty_u16(3000)
+
+def update_melody():
+    """Deve ser chamada no loop principal para gerenciar a melodia"""
+    global current_note_index, note_start_time, is_playing_melody
+    
+    if not is_playing_melody:
+        return
+        
+    now = utime.ticks_ms()
+    freq, duration = game_over_melody[current_note_index]
+    
+    # Verifica se a nota atual terminou
+    if utime.ticks_diff(now, note_start_time) >= duration:
+        buzzer.duty_u16(0)  # Desliga o buzzer
+        
+        # Pequena pausa entre notas (50ms)
+        if utime.ticks_diff(now, note_start_time) < duration + 50:
+            return
+            
+        # Próxima nota ou fim da melodia
+        current_note_index += 1
+        if current_note_index < len(game_over_melody):
+            freq, duration = game_over_melody[current_note_index]
+            buzzer.freq(freq)
+            buzzer.duty_u16(3000)
+            note_start_time = utime.ticks_ms()
+        else:
+            # Fim da melodia
+            is_playing_melody = False
+            buzzer.duty_u16(0)
 
 def game_sounds(action):
-    global start_defeat
     """Sons de jogo melhorados"""
+    global start_defeat
+    
     if action == "game_start":
         # Fanfarra de início (3 notas ascendentes)
-        start_defeat = True
         play_tone_non_blocking(523, 150)  # Dó
         play_tone_non_blocking(659, 150)  # Mi
         play_tone_non_blocking(784, 200)  # Sol
-        start_defeat = False
     
     elif action == "game_over":
-        if lose_state:  
-            # Som descendente (triste)
-            start_defeat = True
-            play_tone_non_blocking(392, 300)  # Sol
-            play_tone_non_blocking(349, 300)  # Fá
-            play_tone_non_blocking(330, 300)  # Mi
-            play_tone_non_blocking(294, 500)  # Ré (mais longo)
-            start_defeat = False
-
+        play_game_over_sound()
+    
     elif action == "hit":
         play_tone_non_blocking(130, 300)  # Dó grave
 
+def process_sounds():
+    """Gerencia a reprodução dos sons na fila de forma mais eficiente"""
+    global current_sound, sound_start_time
+    
+    now = utime.ticks_ms()
+
+    # Se está tocando um som, verifica se já terminou
+    if current_sound is not None:
+        elapsed = utime.ticks_diff(now, sound_start_time)
+        if elapsed >= current_sound[1]:  # current_sound[1] é a duration
+            buzzer.duty_u16(0)  # Desliga o buzzer
+            current_sound = None
+    
+    # Se não está tocando nada e há sons na fila
+    if current_sound is None and sound_queue:
+        current_sound = sound_queue.pop(0)  # Pega o som mais antigo (FIFO)
+        buzzer.freq(current_sound[0])
+        buzzer.duty_u16(2000)
+        sound_start_time = now
+
 def start_game():
-    global game_state, effect_start_time, effect_step
+    global game_state, effect_start_time, effect_step, tiro_on
+    tiro_on = True
     game_state = "START"
     effect_start_time = utime.ticks_ms()
     effect_step = 0
@@ -150,8 +184,8 @@ def lose_game():
     game_state = "LOSE"
     effect_start_time = utime.ticks_ms()
     effect_step = 0
-    game_sounds("game_over")
     show_loose_screen()
+
 
 COUNTDOWN_PATTERNS = {
     3: [
@@ -271,7 +305,6 @@ def process_game_effects():
         elif effect_step == 3 and utime.ticks_diff(now, effect_start_time) >= 1000:
             clear_matrix()
             play_tone_non_blocking(1046, 200)  # Dó agudo (início)
-            reset_game()
             game_state = "RUNNING"
     
     elif game_state == "LOSE":
@@ -295,11 +328,12 @@ def process_game_effects():
             show_pattern("lose","R", apply_brightness((255, 0, 0), brightness))
             effect_step = 5
             effect_start_time = now
-        elif effect_step == 5 and utime.ticks_diff(now, effect_start_time) >= 2000:
+        elif effect_step == 5 and utime.ticks_diff(now, effect_start_time) >= 3000:
             clear_matrix()
             reset_game()
             game_state = "RUNNING"
             first_move = -1
+
 
 def show_start_screen():
     """Tela inicial no OLED"""
@@ -370,9 +404,10 @@ def update_display():
 
 def atirar():
     """Dispara um novo tiro"""
-    if len(tiros) < 3:  # Limite de 2 tiros simultâneos
-        tiros.append([nave_pos[0], nave_pos[1] - 1])
-        ship_sounds("tiro")
+    if (tiro_on):
+        if len(tiros) < 3:  # Limite de 2 tiros simultâneos
+            tiros.append([nave_pos[0], nave_pos[1] - 1])
+            ship_sounds("tiro")
 
 def mover_tiros():
     """Atualiza posição dos tiros"""
@@ -438,6 +473,7 @@ def mover_inimigos():
             vidas -= 1
             game_sounds("hit")
             if vidas <= 0:
+                game_sounds("game_over")
                 lose_game()
             else:
                 reset_positions()
@@ -497,7 +533,7 @@ def reset_positions():
 
 
 def reset_game():
-    global nave_pos, tiros, inimigos_1, inimigos_2, inimigos_3, score, vidas, game_state, match, enemy_move_interval, dificuldade,lose_state, reset, start_defeat
+    global nave_pos, tiros, inimigos_1, inimigos_2, inimigos_3, score, vidas, game_state, match, enemy_move_interval, dificuldade, lose_state, start_defeat, current_sound, tiro_on, reset
     nave_pos = [2, 4]
     tiros = []
     inimigos_1 = [[i, 0] for i in range(5)]
@@ -506,14 +542,14 @@ def reset_game():
     enemy_move_interval = 2000
     score = 0
     vidas = 3
-    match = 1
-    game_state = "START"  # Volta para o estado inicial
-    lose_state = False  # Adicione esta linha
-    dificuldade = 0
     reset = True
+    match = 1
+    game_state = "START"
+    lose_state = False  # Reseta o estado de derrota
+    dificuldade = 0
+    tiro_on = True
     start_defeat = False
-    show_start_screen()
-
+  
 
 # --- Loop Principal ---
 last_update = utime.ticks_ms()
@@ -542,11 +578,11 @@ while button_b.value() == 1:  # Espera pressionar o botão B
 start_game()
 
 while True:
-    print(game_state)
+
     now = utime.ticks_ms()
     process_game_effects()
-    process_sounds()  # Gerencia a reprodução dos sons
-     
+    update_melody() 
+    process_sounds()  
     if game_state == "RUNNING":
         # Movimento da nave
         if utime.ticks_diff(now, last_nave_move) >= nave_move_interval:
