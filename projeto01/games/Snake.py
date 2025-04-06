@@ -5,7 +5,6 @@ import random
 from ssd1306 import SSD1306_I2C
 import math
 
-
 # --- Configuração dos pinos ---
 LED_PIN = 7        # GPIO7 para a matriz NeoPixel (5x5)
 JOYSTICK_X = 27    # GPIO27 (VRx do joystick)
@@ -29,10 +28,14 @@ joystick_interval = 50  # ms (mesmo intervalo do timer anterior)
 last_x = 32768
 last_y = 32768
 threshold = 10000
-game_state = "RUNNING"  # Pode ser: "RUNNING", "LOSE", "START"
+game_state = None  # Pode ser: "RUNNING", "LOSE", "START"
 effect_start_time = 0
 effect_step = 0
 dificuldade = 1
+last_score = -1
+win = False 
+reset = False
+win_state = 0
 
 
 def check_joystick_movement():
@@ -51,7 +54,6 @@ def check_joystick_movement():
             
             if new_dir and new_dir != oposite(current_dir):
                 direction = new_dir
-                print(f"Movimento detectado! Direção: {direction}")
         
         last_x, last_y = x, y
 
@@ -75,6 +77,9 @@ cor_fruta_atual = [255,0,0]
 sound_queue = []
 sound_start_time = 0
 current_sound = None
+aumenta_dificuldade = False
+lose_state = False
+
 
 from machine import Pin, PWM
 import time
@@ -103,7 +108,7 @@ def process_sounds():
     if current_sound is None and sound_queue:
         current_sound = sound_queue.pop(0)  # Armazena (frequency, duration)
         buzzer.freq(current_sound[0])  # current_sound[0] é a frequency
-        buzzer.duty_u16(32768)
+        buzzer.duty_u16(1000)
         sound_start_time = now
 
 def snake_sounds(action):
@@ -121,8 +126,27 @@ def game_sounds(action):
             play_tone_non_blocking(freq, 1000)  # 150ms por nota
 
     elif action == "game_over":
-        for freq in [330, 349, 400]:
-            play_tone_non_blocking(freq, 1000)  # 150ms por nota
+        if lose_state:  
+            # Som descendente (triste)
+            play_tone_non_blocking(392, 300)  # Sol
+            play_tone_non_blocking(349, 300)  # Fá
+            play_tone_non_blocking(330, 300)  # Mi
+            play_tone_non_blocking(294, 500)  # Ré (mais longo)
+    
+    elif action == "WIN":
+    # Fanfarra de vitória (notas mais agudas e ritmo animado)
+    # Efeito de preparação (opcional)
+        for freq in range(200, 600, 50):
+            play_tone_non_blocking(freq, 50)
+        play_tone_non_blocking(523, 200)  # Dó5
+        play_tone_non_blocking(659, 200)  # Mi5
+        play_tone_non_blocking(784, 200)  # Sol5
+        play_tone_non_blocking(1046, 400) # Dó6 (mais longo)
+        play_tone_non_blocking(784, 200)  # Sol5
+        play_tone_non_blocking(1046, 800) # Dó6 final (bem longo)
+        
+    
+
 
 def oposite(direction):
     if direction == 'LEFT':
@@ -144,19 +168,31 @@ def apply_brightness(color, brightness):
     )
 
 def start_game():
-    global game_state, effect_start_time, effect_step
+    global game_state, effect_start_time, effect_step, direction
     game_state = "START"
     effect_start_time = utime.ticks_ms()
     effect_step = 0
+    direction = "RIGHT"  # Reset da direção
     game_sounds("game_start")  # Adicione um som específico para início
 
 def lose_game():
+    global game_state, effect_start_time, effect_step, lose_state
+    if not lose_state:
+        lose_state = True
+        game_state = "LOSE"
+        effect_start_time = utime.ticks_ms()
+        effect_step = 0
+        game_sounds("game_over")
+        show_loose_screen()
+
+def win_game():
     global game_state, effect_start_time, effect_step
-    game_state = "LOSE"
+    game_state = "WIN"
     effect_start_time = utime.ticks_ms()
     effect_step = 0
-    game_sounds("game_over")
-
+    game_sounds("WIN")
+    show_win_screen()
+    
 # Adicione no início do código (com as outras variáveis globais)
 COUNTDOWN_PATTERNS = {
     3: [
@@ -182,41 +218,128 @@ COUNTDOWN_PATTERNS = {
     ]
 }
 
-def show_number(number, color):
+WIN_PATTERNS = {
+    'W': [
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [1, 0, 1, 0, 1],
+        [1, 1, 0, 1, 1],
+        [1, 0, 0, 0, 1]
+    ],
+    'I': [
+        [0, 1, 1, 1, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 1, 1, 1, 0]
+    ],
+    'N': [
+        [1, 0, 0, 0, 1],
+        [1, 1, 0, 0, 1],
+        [1, 0, 1, 0, 1],
+        [1, 0, 0, 1, 1],
+        [1, 0, 0, 0, 1]
+    ]
+}
+
+LOSE_PATTERNS = {
+    'L': [
+        [1, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+        [1, 1, 1, 1, 1]
+    ],
+    'O': [
+        [0, 1, 1, 1, 0],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [0, 1, 1, 1, 0]
+    ],
+    'S': [
+        [0, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0],
+        [0, 1, 1, 1, 0],
+        [0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 0]
+    ],
+    'E': [
+        [1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0],
+        [1, 1, 1, 1, 0],
+        [1, 0, 0, 0, 0],
+        [1, 1, 1, 1, 1]
+    ],
+    'R': [
+        [1, 1, 1, 1, 0],
+        [1, 0, 0, 0, 1],
+        [1, 1, 1, 1, 0],
+        [1, 0, 0, 1, 0],
+        [1, 0, 0, 0, 1]
+    ]
+}
+
+def show_pattern(pattern, number, color):
     """Desenha um número na matriz LED"""
-    pattern = COUNTDOWN_PATTERNS.get(number)
-    if not pattern:
-        return
+    if pattern == "start":
+        pattern = COUNTDOWN_PATTERNS.get(number)
+        if not pattern:
+            return
+        
+        for y in range(5):
+            for x in range(5):
+                if pattern[y][x]:
+                    set_pixel(x, y, color)
+                else:
+                    set_pixel(x, y, (0, 0, 0))
+        np.write()
+    if pattern == "win":
+        pattern = WIN_PATTERNS.get(number)
+        if not pattern:
+            return
+        
+        for y in range(5):
+            for x in range(5):
+                if pattern[y][x]:
+                    set_pixel(x, y, color)
+                else:
+                    set_pixel(x, y, (0, 0, 0))
+        np.write()
+    if pattern == "lose":
+        pattern = LOSE_PATTERNS.get(number)
+        if not pattern:
+            return
+        
+        for y in range(5):
+            for x in range(5):
+                if pattern[y][x]:
+                    set_pixel(x, y, color)
+                else:
+                    set_pixel(x, y, (0, 0, 0))
+        np.write()
     
-    for y in range(5):
-        for x in range(5):
-            if pattern[y][x]:
-                set_pixel(x, y, color)
-            else:
-                set_pixel(x, y, (0, 0, 0))
-    np.write()
+
 
 def process_game_effects():
-    global game_state, effect_start_time, effect_step
-    
+    global game_state, effect_start_time, effect_step, win_state,lose_state
     now = utime.ticks_ms()
     
     if game_state == "START":
         if effect_step == 0:  # Mostra "3" (azul)
-            show_number(3, apply_brightness((0, 0, 255), brightness))
+            show_pattern("start",3, apply_brightness((0, 0, 255), brightness))
      # Som para contagem
             effect_step = 1
             effect_start_time = now
-            
         elif effect_step == 1:  # Espera 1 segundo
             if utime.ticks_diff(now, effect_start_time) >= 1000:
-                show_number(2, apply_brightness((0, 0, 255), brightness))
+                show_pattern("start",2, apply_brightness((0, 0, 255), brightness))
                 effect_step = 2
                 effect_start_time = now
-                
+
         elif effect_step == 2:  # Espera 1 segundo
             if utime.ticks_diff(now, effect_start_time) >= 1000:
-                show_number(1, apply_brightness((0, 0, 255), brightness))
+                show_pattern("start",1, apply_brightness((0, 0, 255), brightness))
                 effect_step = 3
                 effect_start_time = now
                 
@@ -227,31 +350,61 @@ def process_game_effects():
                 game_state = "RUNNING"
 
     elif game_state == "LOSE":
+        if effect_step == 0:
+            show_pattern("lose","L", apply_brightness((255, 0, 0), brightness))
+            effect_step = 1
+            effect_start_time = now
+        elif effect_step == 1 and utime.ticks_diff(now, effect_start_time) >= 800:
+            show_pattern("lose","O", apply_brightness((255, 0, 0), brightness))
+            effect_step = 2
+            effect_start_time = now
+        elif effect_step == 2 and utime.ticks_diff(now, effect_start_time) >= 800:
+            show_pattern("lose","S", apply_brightness((255, 0, 0), brightness))
+            effect_step = 3
+            effect_start_time = now
+        elif effect_step == 3 and utime.ticks_diff(now, effect_start_time) >= 800:
+            show_pattern("lose","E", apply_brightness((255, 0, 0), brightness))
+            effect_step = 4
+            effect_start_time = now
+        elif effect_step == 4 and utime.ticks_diff(now, effect_start_time) >= 800:
+            show_pattern("lose","R", apply_brightness((255, 0, 0), brightness))
+            effect_step = 5
+            effect_start_time = now
+        elif effect_step == 5 and utime.ticks_diff(now, effect_start_time) >= 2000:
+            clear_matrix()
+            reset_game()
+            game_state = "RUNNING"
+
+    elif game_state == "WIN":
         if effect_step == 0:  # Mostra "3" (azul)
-            show_number(3, apply_brightness((255, 0, 0), brightness))
+            show_pattern("win","W", apply_brightness((255, 255, 0), brightness))
      # Som para contagem
             effect_step = 1
             effect_start_time = now
             
         elif effect_step == 1:  # Espera 1 segundo
             if utime.ticks_diff(now, effect_start_time) >= 1000:
-                show_number(2, apply_brightness((255, 0, 0), brightness))
+                show_pattern("win","I", apply_brightness((255, 255, 0), brightness))
                 effect_step = 2
                 effect_start_time = now
                 
         elif effect_step == 2:  # Espera 1 segundo
             if utime.ticks_diff(now, effect_start_time) >= 1000:
-                show_number(1, apply_brightness((255, 0, 0), brightness))
+                show_pattern("win","N", apply_brightness((255, 255, 0), brightness))
                 effect_step = 3
                 effect_start_time = now
                 
         elif effect_step == 3:  # Espera 1 segundo e inicia
             if utime.ticks_diff(now, effect_start_time) >= 1000:
                 clear_matrix()
-                reset_game()
-                game_state = "RUNNING"
+                effect_step = 0
+                if (win_state == 1):
+                    reset_game()
+                    game_state = "RUNNING"
+                else:
+                    win_state += 1
+                    win_game()        
         
-
 # --- Funções principais ---
 def set_pixel(x, y, color):
     """Acende o LED na posição (x,y) com RGB"""
@@ -271,18 +424,28 @@ def show_start_screen():
     oled.text("Pressione B", 25, 40)
     oled.show()
 
+def show_win_screen():
+        oled.fill(0)
+        oled.text(f"PARABENS", 0, 0)
+        oled.text(f"VOCE GANHOU", 0, 20)
+        oled.show()
 
-last_score = -1
+def show_loose_screen():
+        oled.fill(0)
+        oled.text(f"QUE PENA", 0, 0)
+        oled.text(f"VOCE PERDEU!", 0, 20)
+        oled.show()
 
 def update_display():
-    global last_score
-    if score != last_score:
+    global last_score, reset
+    if (score != last_score or reset):
         oled.fill(0)
         oled.text(f"Pontos: {score}", 0, 0)
         oled.text(f"Dificulade: {dificuldade}", 0, 20)
         oled.show()
         last_score = score
-
+        reset = False
+    
 def read_joystick():
     """Lê o joystick e retorna a direção"""
     x = joy_x.read_u16()
@@ -303,17 +466,21 @@ def place_food():
 
 def reset_game():
     """Reinicia o jogo"""
-    global snake, direction, score, game_speed, dificuldade
+    global snake, direction, score, game_speed, dificuldade,win_state,win,reset,lose_state
     snake = [(2, 2)]
     direction = "RIGHT"
     score = 0
     game_speed = 0.9
     dificuldade = 0
+    win = False  
+    win_state = 0
+    reset = True
+    lose_state = False  # Adicione esta linha
     place_food()
     update_display()
 
 def update_snake():
-    global snake, direction, score, game_speed, dificuldade
+    global snake, direction, score, game_speed, dificuldade,win, aumenta_dificuldade, lose_state
     
     head_x, head_y = snake[0]
     
@@ -328,11 +495,10 @@ def update_snake():
         head_x = (head_x + 1) % 5
     
     # Debug (opcional)
-    print(f"Movendo: {direction} ({head_x}, {head_y}) | Snake: {snake}")
     snake_sounds("move")
 
     # Verifica colisão
-    if (head_x, head_y) in snake:
+    if (head_x, head_y) in snake[:-1] and not lose_state:
         lose_game()
         return
     
@@ -340,13 +506,20 @@ def update_snake():
     snake.insert(0, (head_x, head_y))
     
     # Verifica se comeu
-    if (head_x, head_y) == food:
+    if (head_x, head_y) == food and not win:
         snake_sounds("eat")
-        score += 1
-        place_food()
-        # Aumenta dificuldade
-        game_speed = max(0.1, game_speed * 0.95)
-        dificuldade +=1
+        if(len(snake) == 25):
+            win = True  
+            win_game()
+        else:
+            score += 1
+            place_food()
+            if (aumenta_dificuldade): #aumenta dificuldade vez sim vez nao
+                game_speed = max(0.1, game_speed * 0.95)
+                dificuldade +=1
+                aumenta_dificuldade = False
+            else:
+                aumenta_dificuldade = True
     else:
         snake.pop()  # Remove cauda se não comeu
 
@@ -444,11 +617,12 @@ start_game()
 last_update = utime.ticks_ms()
 
 while True:
-
     now = utime.ticks_ms()
+    process_sounds()
+    check_joystick_movement()
     process_game_effects()
-    process_sounds()  # Gerencia a reprodução dos sons
-    check_joystick_movement()  # Chama a verificação do joystick
+
+    print(f"Estado do jogo: {game_state}, Lose state: {lose_state}")  # Debug
 
     if game_state == "RUNNING":
         if utime.ticks_diff(now, last_update) >= int(game_speed * 1000):

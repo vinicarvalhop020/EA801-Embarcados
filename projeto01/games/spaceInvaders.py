@@ -22,6 +22,10 @@ i2c = SoftI2C(scl=Pin(OLED_SCL), sda=Pin(OLED_SDA))
 oled = SSD1306_I2C(128, 64, i2c)
 joy_button = Pin(22, Pin.IN, Pin.PULL_UP)
 buzzer = PWM(Pin(21))
+dificuldade = 0
+last_score = -1
+start_defeat = False
+
 
 
 
@@ -44,10 +48,10 @@ game_state = "RUNNING"  # Começa no estado START
 brightness = 0.1
 match = 1
 direcao_inimigos = 1  # 1 = direita, -1 = esquerda
-game_speed = 0.95
 score = 0
-vidas = 3
-first_move = True  # Adicione isso com as outras variáveis globais
+first_move = True  
+lose_state = False
+reset = False
 
 
 # Modifique estas variáveis globais
@@ -63,10 +67,15 @@ def play_tone_non_blocking(frequency, duration):
 
 def process_sounds():
     """Gerencia a reprodução dos sons na fila de forma mais eficiente"""
-    global current_sound, sound_start_time
+    global current_sound, sound_start_time, start_defeat
     
     now = utime.ticks_ms()
-    
+
+    if start_defeat: #prioridade se é start ou defeat
+        current_sound = sound_queue.pop(-1)
+        buzzer.freq(current_sound[0])  # current_sound[0] é a frequency
+        buzzer.duty_u16(2000)
+
     # Se está tocando um som, verifica se já terminou
     if current_sound is not None:
         elapsed = utime.ticks_diff(now, sound_start_time)
@@ -83,6 +92,7 @@ def process_sounds():
         sound_start_time = now
         # Limpa a fila para evitar acúmulo
         sound_queue.clear()
+
 
 def ship_sounds(action):
     """Efeitos sonoros melhorados"""
@@ -104,18 +114,25 @@ def ship_sounds(action):
     
 
 def game_sounds(action):
+    global start_defeat
     """Sons de jogo melhorados"""
     if action == "game_start":
         # Fanfarra de início (3 notas ascendentes)
+        start_defeat = True
         play_tone_non_blocking(523, 150)  # Dó
         play_tone_non_blocking(659, 150)  # Mi
         play_tone_non_blocking(784, 200)  # Sol
+        start_defeat = False
     
     elif action == "game_over":
-        # Trilha descendente dramática
-        play_tone_non_blocking(659, 200)  # Mi
-        play_tone_non_blocking(523, 200)  # Dó
-        play_tone_non_blocking(392, 300)  # Sol grave
+        if lose_state:  
+            # Som descendente (triste)
+            start_defeat = True
+            play_tone_non_blocking(392, 300)  # Sol
+            play_tone_non_blocking(349, 300)  # Fá
+            play_tone_non_blocking(330, 300)  # Mi
+            play_tone_non_blocking(294, 500)  # Ré (mais longo)
+            start_defeat = False
 
     elif action == "hit":
         play_tone_non_blocking(130, 300)  # Dó grave
@@ -128,11 +145,13 @@ def start_game():
     game_sounds("game_start")  # Adicione um som específico para início
 
 def lose_game():
-    global game_state, effect_start_time, effect_step
+    global game_state, effect_start_time, effect_step, lose_state
+    lose_state = True
     game_state = "LOSE"
     effect_start_time = utime.ticks_ms()
     effect_step = 0
     game_sounds("game_over")
+    show_loose_screen()
 
 COUNTDOWN_PATTERNS = {
     3: [
@@ -158,19 +177,72 @@ COUNTDOWN_PATTERNS = {
     ]
 }
 
-def show_number(number, color):
+LOSE_PATTERNS = {
+    'L': [
+        [1, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+        [1, 1, 1, 1, 1]
+    ],
+    'O': [
+        [0, 1, 1, 1, 0],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [0, 1, 1, 1, 0]
+    ],
+    'S': [
+        [0, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0],
+        [0, 1, 1, 1, 0],
+        [0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 0]
+    ],
+    'E': [
+        [1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0],
+        [1, 1, 1, 1, 0],
+        [1, 0, 0, 0, 0],
+        [1, 1, 1, 1, 1]
+    ],
+    'R': [
+        [1, 1, 1, 1, 0],
+        [1, 0, 0, 0, 1],
+        [1, 1, 1, 1, 0],
+        [1, 0, 0, 1, 0],
+        [1, 0, 0, 0, 1]
+    ]
+}
+
+def show_pattern(pattern, number, color):
     """Desenha um número na matriz LED"""
-    pattern = COUNTDOWN_PATTERNS.get(number)
-    if not pattern:
-        return
+    if pattern == "start":
+        pattern = COUNTDOWN_PATTERNS.get(number)
+        if not pattern:
+            return
+        
+        for y in range(5):
+            for x in range(5):
+                if pattern[y][x]:
+                    set_pixel(x, y, color)
+                else:
+                    set_pixel(x, y, (0, 0, 0))
+        np.write()
     
-    for y in range(5):
-        for x in range(5):
-            if pattern[y][x]:
-                set_pixel(x, y, color)
-            else:
-                set_pixel(x, y, (0, 0, 0))
-    np.write()
+    if pattern == "lose":
+        pattern = LOSE_PATTERNS.get(number)
+        if not pattern:
+            return
+        
+        for y in range(5):
+            for x in range(5):
+                if pattern[y][x]:
+                    set_pixel(x, y, color)
+                else:
+                    set_pixel(x, y, (0, 0, 0))
+        np.write()
+
 
 def process_game_effects():
     global game_state, effect_start_time, effect_step, first_move
@@ -179,19 +251,19 @@ def process_game_effects():
     
     if game_state == "START":
         if effect_step == 0:  # Início da contagem
-            show_number(3, apply_brightness((0, 0, 255), brightness))
+            show_pattern("start",3, apply_brightness((0, 0, 255), brightness))
             play_tone_non_blocking(784, 150)  # Sol
             effect_step = 1
             effect_start_time = now
             
         elif effect_step == 1 and utime.ticks_diff(now, effect_start_time) >= 1000:
-            show_number(2, apply_brightness((0, 0, 255), brightness))
+            show_pattern("start",2, apply_brightness((0, 0, 255), brightness))
             play_tone_non_blocking(659, 150)  # Mi
             effect_step = 2
             effect_start_time = now
             
         elif effect_step == 2 and utime.ticks_diff(now, effect_start_time) >= 1000:
-            show_number(1, apply_brightness((0, 0, 255), brightness))
+            show_pattern("start",1, apply_brightness((0, 0, 255), brightness))
             play_tone_non_blocking(523, 150)  # Dó
             effect_step = 3
             effect_start_time = now
@@ -203,31 +275,31 @@ def process_game_effects():
             game_state = "RUNNING"
     
     elif game_state == "LOSE":
-        # Mantém a lógica existente, mas adiciona sons
         if effect_step == 0:
-            show_number(3, apply_brightness((255, 0, 0), brightness))
-            play_tone_non_blocking(392, 200)  # Sol grave
+            show_pattern("lose","L", apply_brightness((255, 0, 0), brightness))
             effect_step = 1
             effect_start_time = now
-            
-        elif effect_step == 1 and utime.ticks_diff(now, effect_start_time) >= 1000:
-            show_number(2, apply_brightness((255, 0, 0), brightness))
-            play_tone_non_blocking(330, 200)  # Mi bemol
+        elif effect_step == 1 and utime.ticks_diff(now, effect_start_time) >= 800:
+            show_pattern("lose","O", apply_brightness((255, 0, 0), brightness))
             effect_step = 2
             effect_start_time = now
-            
-        elif effect_step == 2 and utime.ticks_diff(now, effect_start_time) >= 1000:
-            show_number(1, apply_brightness((255, 0, 0), brightness))
-            play_tone_non_blocking(262, 200)  # Dó grave
+        elif effect_step == 2 and utime.ticks_diff(now, effect_start_time) >= 800:
+            show_pattern("lose","S", apply_brightness((255, 0, 0), brightness))
             effect_step = 3
             effect_start_time = now
-            
-        elif effect_step == 3 and utime.ticks_diff(now, effect_start_time) >= 1000:
+        elif effect_step == 3 and utime.ticks_diff(now, effect_start_time) >= 800:
+            show_pattern("lose","E", apply_brightness((255, 0, 0), brightness))
+            effect_step = 4
+            effect_start_time = now
+        elif effect_step == 4 and utime.ticks_diff(now, effect_start_time) >= 800:
+            show_pattern("lose","R", apply_brightness((255, 0, 0), brightness))
+            effect_step = 5
+            effect_start_time = now
+        elif effect_step == 5 and utime.ticks_diff(now, effect_start_time) >= 2000:
             clear_matrix()
             reset_game()
             game_state = "RUNNING"
-            first_move = True  # Indica que é o primeiro movimento após a contagem
-
+            first_move = -1
 
 def show_start_screen():
     """Tela inicial no OLED"""
@@ -235,6 +307,12 @@ def show_start_screen():
     oled.text("SPACE INAVADERS", 5, 20)
     oled.text("Pressione B", 25, 40)
     oled.show()
+
+def show_loose_screen():
+        oled.fill(0)
+        oled.text(f"QUE PENA", 0, 0)
+        oled.text(f"VOCE PERDEU!", 0, 20)
+        oled.show()
 
 def apply_brightness(color, brightness):
     """Ajusta o brilho de uma cor RGB (0-255)"""
@@ -280,13 +358,15 @@ def draw_game():
     np.write()
 
 def update_display():
-    """Atualiza o display OLED"""
-    oled.fill(0)
-    oled.text(f"Pontos: {score}", 0, 0)
-    oled.text(f"Vidas: {vidas}", 0, 20)
-    oled.text(f"Fase {match}", 0, 30)
-    oled.show()
-
+    global last_score, reset
+    if (score != last_score or reset):
+        oled.fill(0)
+        oled.text(f"Pontos: {score}", 0, 0)
+        oled.text(f"Vidas: {vidas}", 0, 20)
+        oled.text(f"Fase {match}", 0, 30)
+        oled.show()
+        last_score = score
+        reset = False
 
 def atirar():
     """Dispara um novo tiro"""
@@ -359,7 +439,8 @@ def mover_inimigos():
             game_sounds("hit")
             if vidas <= 0:
                 lose_game()
-            reset_positions()
+            else:
+                reset_positions()
 
 
 def verificar_colisoes():
@@ -416,16 +497,21 @@ def reset_positions():
 
 
 def reset_game():
-    global nave_pos, tiros, inimigos_1, inimigos_2, inimigos_3, score, vidas, game_state, match
+    global nave_pos, tiros, inimigos_1, inimigos_2, inimigos_3, score, vidas, game_state, match, enemy_move_interval, dificuldade,lose_state, reset, start_defeat
     nave_pos = [2, 4]
     tiros = []
     inimigos_1 = [[i, 0] for i in range(5)]
     inimigos_2 = []
     inimigos_3 = []
+    enemy_move_interval = 2000
     score = 0
     vidas = 3
     match = 1
     game_state = "START"  # Volta para o estado inicial
+    lose_state = False  # Adicione esta linha
+    dificuldade = 0
+    reset = True
+    start_defeat = False
     show_start_screen()
 
 
@@ -435,11 +521,8 @@ button_b.irq(trigger=Pin.IRQ_FALLING, handler=lambda p: atirar())
 
 # --- Temporizadores separados ---
 
-last_tiro_update = utime.ticks_ms()
-tiro_update_interval = 200  # Tiros movem a cada 200ms
-
-last_game_update = utime.ticks_ms()
-game_speed = 100  # Atualizações gerais, como nave (a cada 100ms)
+#last_tiro_update = utime.ticks_ms()
+#tiro_update_interval = 200  # Tiros movem a cada 200ms
 
 last_enemy_move = utime.ticks_ms()
 enemy_move_interval = 2000  # ms (1 segundo para descer)
@@ -486,12 +569,14 @@ while True:
 
         draw_game()
         update_display()
+        utime.sleep_ms(10)
 
         # Verifica se todos inimigos foram destruídos
         if len(inimigos_1) == 0 and len(inimigos_2) == 0 and len(inimigos_3) == 0:
             match += 1
             reset_positions()
             enemy_move_interval = max(300, int(enemy_move_interval * 0.9))
+            dificuldade += 1 
 
   
 
