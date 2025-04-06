@@ -197,12 +197,41 @@ def button_handler(pin):
         game_active = True
         game_over = False
         engine_sound_enabled = True
+        
+        # Música da contagem regressiva (notas em Hz, duração em ms)
+        COUNTDOWN_SOUND = [
+            (523, 200),  # Dó
+            (392, 200),  # Sol
+            (523, 200), # Dó
+            (659, 400)   # Mi
+        ]
+        
+        # Toca a primeira parte da música junto com o número 3
         show_number(3, apply_brightness((0, 0, 255), 0.1))
-        utime.sleep_ms(1000)  # Alterado de time para utime
+        for note, duration in COUNTDOWN_SOUND[:2]:
+            buzzer.freq(note)
+            buzzer.duty_u16(32768)  # 50% volume
+            utime.sleep_ms(duration)
+            buzzer.duty_u16(0)
+            utime.sleep_ms(50)
+        
+        # Número 2 com continuação da música
         show_number(2, apply_brightness((0, 0, 255), 0.1))
-        utime.sleep_ms(1000)  # Alterado de time para utime
+        for note, duration in COUNTDOWN_SOUND[2:]:
+            buzzer.freq(note)
+            buzzer.duty_u16(32768)
+            utime.sleep_ms(duration)
+            buzzer.duty_u16(0)
+            utime.sleep_ms(50)
+        
+        # Número 1 com nota final
         show_number(1, apply_brightness((0, 0, 255), 0.1))
-        utime.sleep_ms(1000)  # Alterado de time para utime
+        buzzer.freq(784)  # Sol agudo
+        buzzer.duty_u16(32768)
+        utime.sleep_ms(400)
+        buzzer.duty_u16(0)
+        
+        # Inicia o jogo
         score = 100
         player_x = 2
         player_y = 4
