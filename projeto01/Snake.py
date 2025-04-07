@@ -633,7 +633,7 @@ def voltar():
     gc.collect()
     gc.collect()
     main.main()
-   
+
 # --- Inicialização ---
 show_start_screen()
 while button_b.value() == 1:  # Espera pressionar o botão B
