@@ -976,8 +976,8 @@ def move_cars():
 def update_display_cars():
     oled.fill(0)
     oled.text(f"Pontos: {score}", 0, 0)
-    oled.text(f"Para voltar ao menu:", 0, 30)
-    oled.text(f"Pressione A:", 0, 40)
+    oled.text(f"Para voltar ao menu:", 0, 20)
+    oled.text(f"Pressione A:", 0, 30)
     oled.show()
 
 def show_game_over_cars():
@@ -1520,11 +1520,10 @@ def update_display_sp():
     global last_score, reset
     if (score != last_score or reset):
         oled.fill(0)
-        oled.text(f"Pontos: {score}", 0, 0)
+        oled.text(f"Pontos: {score}", 0, 10)
         oled.text(f"Vidas: {vidas}", 0, 20)
         oled.text(f"Fase {match}", 0, 30)
-        oled.text(f"voltar ao menu:", 0, 40)
-        oled.text(f"Pressione A:", 0, 50)
+        oled.text(f"menu (A):", 0, 40)
         oled.show()
         last_score = score
         reset = False
