@@ -5,6 +5,7 @@ Nesse projeto foi realizado a contrução de um micro videogame, utilizando apen
 
 # Autores
 Vinícius Carvalho Pimpim, RA: 194940
+
 Erivelton Villeno Soares de Oliveira, RA:247073
 
 # Game_dog_Lab
