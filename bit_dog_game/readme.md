@@ -1,7 +1,6 @@
 # Projeto 01 da disciplina de Sistemas Embarcados EA801
 Nesse projeto foi realizado a contrução de um micro videogame, utilizando apenas os componentes da placa BitDogLab
 
-
 # PROJETO Game_Dog_Lab - Trabalho realizado na Disciplina EA801 Laboratorio de sistemas embarcados
 
 # Autores
@@ -11,23 +10,18 @@ Erivelton Villeno Soares de Oliveira, RA:247073
 # Game_dog_Lab
 
 O projeto 01 da disciplina implementa um minivideogame simplificado, onde o usuario pode escolher entre 3 jogos,
-Space Invaders (clássico jogo onde aparecem inimigos ao lado oposto da tela e o usuario deve elimina, atirando), 
+Space Invaders (clássico jogo onde aparecem inimigos ao lado oposto da tela que o jogador deve destruir, atirando), 
 Snake (Antigo jogo conhecido como jogo da cobrinha, o objetivo é comer as frutas, aumentar a cobra e completar o labirinto)
-Racing_cars (Semelhante ao "Enduro" de Atari, o objetivo é ultrapassar os carros e evitar batidas)
+Racing_cars (Semelhante ao "Enduro" de Atari, o objetivo é ultrapassar os carros e evitar batidas).
+O menu utiliza o analogico para selecionar o jogo, e B para confirmar
 
-Está é uma primeira versão do Game_Dog_Lab e ainda pode ser aprimorado com a adição de mais jogos, e tornar o menu independente, como um script separado, dos scripts do jogo
+Está é uma primeira versão do Game_Dog_Lab e ainda pode ser aprimorado com a adição de mais jogos!
 
 ## Como instalar?
 
-1. Instale a IDE Thonny a partir de [https://thonny.org/](https://thonny.org/).
+1. Instale a IDE VSCode a partir de [https://code.visualstudio.com/].
 2. Conecte a placa BitDogLab ao computador através de um cabo micro-USB.
-3. Siga as instruções em [Introdução prática a BitDogLab](https://escola-4-ponto-zero.notion.site/Cap-tulo-02-Usando-o-IDE-Thonny-para-desenvolvimento-d5dce52947244cd6a64da4ba77831c7a) para certificar-se que a BitDogLab está sendo reconhecida no Thonny.
-4. Baixe os códigos `main.py` e pergunta_resposta.py neste repositório.
-5. No Thonny, acesse `Arquivo > Abrir` e localize os arquivos `main.py` e `pergunta_resposta.py`(por exemplo, na pasta Downloads).
-6. Pressione o botão "play" (triângulo verde) para executar o programa na BitDogLab temporariamente.
-7. Se a execução estiver correta e você quiser salvar o código na BitDogLab para executá-lo posteriormente, então:
-8. se você desejar preservar o programa atual de sua BitDogLab, antes de prosseguir, salve o arquivo main.py existente em uma pasta de seu computador.
-9. Agora, com a guia que contém `main.py` ativa no Thonny vá em `Arquivo > Salvar como`.
-10. Quando a caixa de seleção aparecer com "Raspberry Pi e Computador", selecione Raspberry Pi, clique sobre `main.py` para sobrescrever.
-11. Pronto, você pode desconectar a BitDogLab e o programa pode ser executado (ou reiniciado) apertando o botão próximo à bateria.
-
+3. Instale a Extensão micropico no VSCODE
+4. Inicialize um novo projeto utilizando a barra de pesquisa ">MicroPico:Initialize MicroPico Project"
+5. Dentro da pasta criada utilize novamente a barra de pesquisa ">MicroPico:Upload Project to pico"
+6. Se divirta!
