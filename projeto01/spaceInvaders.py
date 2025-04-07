@@ -557,36 +557,24 @@ def reset_game():
 
 def cleanup():
     # Remove todas as interrupções
-    button_a.irq(handler=None)
-    button_b.irq(handler=None)
     # Limpa a matriz de LEDs
     clear_matrix()
     # Desliga o buzzer se estiver ativo
     buzzer.duty_u16(0)
 
 
-def voltar(p):
-    utime.sleep_ms(200)  # Debounce
-    cleanup()  # Limpeza antes de voltar
+def voltar():
+    # Debounce
+    utime.sleep_ms(200)
     
-    # Mostra mensagem de retorno
-    oled.fill(0)
-    oled.text("Voltando...", 0, 30)
-    oled.show()
-    utime.sleep_ms(300)
+    # Limpeza completa
+    cleanup()
     
-    # Limpeza de memória antes de recarregar
+    # Limpeza de memória
     gc.collect()
-    
-    # Força recarregamento do módulo main
-    if 'main' in sys.modules:
-        del sys.modules['main']
-    
-    # Importa e executa o menu principal
-    from main import main
-    main()
+    import main
+    main.main()
 
-button_a.irq(trigger=Pin.IRQ_FALLING, handler=voltar)  
 button_b.irq(trigger=Pin.IRQ_FALLING, handler=lambda p: atirar())
 
 # --- Loop Principal ---
@@ -616,6 +604,8 @@ while button_b.value() == 1:  # Espera pressionar o botão B
 start_game()
 
 while True:
+    if button_a.value() == 0:
+        break
 
     now = utime.ticks_ms()
     process_game_effects()
@@ -653,3 +643,4 @@ while True:
             dificuldade += 1 
 
 
+voltar()

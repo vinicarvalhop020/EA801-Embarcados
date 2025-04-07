@@ -5,6 +5,7 @@ import random
 from ssd1306 import SSD1306_I2C
 import math
 import gc
+import main
 
 # --- Configuração dos pinos ---
 LED_PIN = 7        # GPIO7 para a matriz NeoPixel (5x5)
@@ -39,7 +40,13 @@ last_score = -1
 win = False 
 reset = False
 win_state = 0
+running = True
+
 import sys
+
+def stop_game(pin):
+    global running
+    running = False
 
 def check_joystick_movement():
     global direction, last_x, last_y, last_joystick_check
@@ -613,35 +620,20 @@ def hue_to_rgb(h, S=1.0, V=1.0):
 
 def cleanup():
     # Remove todas as interrupções
-    button_a.irq(handler=None)
-    button_b.irq(handler=None)
-    # Limpa a matriz de LEDs
-    # Desliga o buzzer se estiver ativo
     buzzer.duty_u16(0)
 
-def voltar(p):
-    utime.sleep_ms(200)  # Debounce
-    cleanup()  # Limpeza antes de voltar
+def voltar():
+    # Debounce
+    utime.sleep_ms(200)
     
-    # Mostra mensagem de retorno
-    oled.fill(0)
-    oled.text("Voltando...", 0, 30)
-    oled.show()
-    utime.sleep_ms(300)
+    # Limpeza completa
+    cleanup()
     
-    # Limpeza de memória antes de recarregar
+    # Limpeza de memória agressiva
     gc.collect()
-    
-    # Força recarregamento do módulo main
-    if 'main' in sys.modules:
-        del sys.modules['main']
-    
-    # Importa e executa o menu principal
-    from main import main
-    main()
-
-button_a.irq(trigger=Pin.IRQ_FALLING, handler=voltar)  
-
+    gc.collect()
+    main.main()
+   
 # --- Inicialização ---
 show_start_screen()
 while button_b.value() == 1:  # Espera pressionar o botão B
@@ -655,8 +647,8 @@ import sys
 
 
 while True:
-    
-    
+    if button_a.value() == 0:
+        break
     now = utime.ticks_ms()
     process_sounds()
     check_joystick_movement()
@@ -668,11 +660,7 @@ while True:
             draw()
             update_display()
             utime.sleep_ms(10)
-            
-# Limpeza final ao sair
-buzzer.duty_u16(0)
-clear_matrix()
-    
-    
+
+voltar()
     
         

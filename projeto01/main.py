@@ -103,54 +103,71 @@ def clear_matrix():
     np.write()
 
 
-# --- Game Management ---
+def cleanup_resources():
+    """Limpeza completa de todos os recursos"""
+    # Desativa todas as interrupções    
+    # Limpa a matriz de LEDs
+    clear_matrix()
+    
+    # Limpa o display
+    oled.fill(0)
+    oled.show()
+    
+    # Coleta de lixo agressiva
+    gc.collect()
+    gc.collect()  # Duas chamadas para garantir
+
 def load_game(game_name):
     try:
-        # Limpa TODAS as interrupções antes de carregar o novo jogo
-        for pin in [button_a, button_b]:
-            pin.irq(handler=None)
-        
-        # Limpeza de memória mais agressiva
-        gc.collect()
+        # Limpeza completa antes de carregar novo jogo
+        cleanup_resources()
         
         # Mostra tela de loading
         show_loading(games[selected][0])
         
         # Mapeamento de nomes de jogos para módulos
-        file_names = {
+        module_name = {
             "Snake": "Snake",
             "Space Invaders": "spaceInvaders",
             "Racing Cars": "Racing_cars"
-        }
+        }.get(game_name, game_name)
         
-        module_name = file_names.get(game_name, game_name)
-        
-        # Força o recarregamento do módulo se já estiver carregado
+        # Força o recarregamento do módulo
         if module_name in sys.modules:
             del sys.modules[module_name]
+            gc.collect()
         
-        # Importa e executa o jogo
-        game_module = __import__(module_name, None, None, ['main'])
-        game_module.main(oled, joystick_y, button_b, button_a)
-        
+        # Importa dinamicamente com tratamento de erro
+        try:
+            game_module = __import__(module_name)
+            game_module.main(oled, np, button_a, button_b)  # Passa os recursos necessários
+        except Exception as e:
+            show_error(f"Erro no jogo:\n{str(e)}")
+            raise
     except Exception as e:
         show_error(f"Erro ao carregar {game_name}:\n{str(e)}")
     finally:
-        # Garante que as interrupções sejam limpas mesmo em caso de erro
-        for pin in [button_a, button_b]:
-            pin.irq(handler=None)
-        gc.collect()
-        oled.fill(0)
-        oled.show()
+        cleanup_resources()
+
 
 # --- Main Loop ---
 def main():
     show_menu()
+    last_active = time.ticks_ms()
+    
     while True:
         selected_game = check_input()
         if selected_game:
+            last_active = time.ticks_ms()
             load_game(selected_game)
-            show_menu()  # Volta ao menu após o jogo
+            show_menu()
+        
+        # Verifica timeout (5 minutos de inatividade)
+        if time.ticks_diff(time.ticks_ms(), last_active) > 300000:
+            cleanup_resources()
+            show_menu()
+            last_active = time.ticks_ms()
+            
         time.sleep_ms(50)
 
 if __name__ == "__main__":

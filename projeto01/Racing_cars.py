@@ -67,28 +67,18 @@ def cleanup():
 
 button_a = Pin(BUTTON_A, Pin.IN, Pin.PULL_UP)
 
-def voltar(p):
-    utime.sleep_ms(200)  # Debounce
-    cleanup()  # Limpeza antes de voltar
+def voltar():
+    # Debounce
+    utime.sleep_ms(200)
     
-    # Mostra mensagem de retorno
-    oled.fill(0)
-    oled.text("Voltando...", 0, 30)
-    oled.show()
-    utime.sleep_ms(300)
+    # Limpeza completa
+    cleanup()
     
-    # Limpeza de memória antes de recarregar
+    # Limpeza de memória
     gc.collect()
-    
-    # Força recarregamento do módulo main
-    if 'main' in sys.modules:
-        del sys.modules['main']
-    
-    # Importa e executa o menu principal
-    from main import main
-    main()
-
-button_a.irq(trigger=Pin.IRQ_FALLING, handler=voltar)  
+  
+    import main
+    main.main()
 
 # Display OLED
 i2c = SoftI2C(scl=Pin(15), sda=Pin(14))
@@ -416,6 +406,8 @@ def show_start_screen():
 
 def game_loop():
     while True:
+        if button_a.value() == 0:
+            break
         if game_active:
             move_cars()
         utime.sleep(0.05)  # Alterado de time para utime
@@ -454,3 +446,4 @@ def joystick_handler(pin):
 
 show_start_screen()
 game_loop()
+voltar()
