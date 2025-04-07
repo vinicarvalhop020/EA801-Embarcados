@@ -5,10 +5,14 @@ import utime  # Alterado de time para utime
 import random
 import machine
 import math
+import sys
+import gc
 
 # Configurações iniciais
 np = neopixel.NeoPixel(Pin(7), 25)
 NUM_LEDS = 25
+BUTTON_A = 5
+
 
 LED_MATRIX = [
     [24, 23, 22, 21, 20],
@@ -54,6 +58,37 @@ GAMEOVER_SOUND = [
     (131, 600),  # Dó
     (110, 800)   # Lá mais grave
 ]
+
+def cleanup():
+    # Remove todas as interrupções
+    button_a.irq(handler=None)
+    buzzer.duty_u16(0)
+
+
+button_a = Pin(BUTTON_A, Pin.IN, Pin.PULL_UP)
+
+def voltar(p):
+    utime.sleep_ms(200)  # Debounce
+    cleanup()  # Limpeza antes de voltar
+    
+    # Mostra mensagem de retorno
+    oled.fill(0)
+    oled.text("Voltando...", 0, 30)
+    oled.show()
+    utime.sleep_ms(300)
+    
+    # Limpeza de memória antes de recarregar
+    gc.collect()
+    
+    # Força recarregamento do módulo main
+    if 'main' in sys.modules:
+        del sys.modules['main']
+    
+    # Importa e executa o menu principal
+    from main import main
+    main()
+
+button_a.irq(trigger=Pin.IRQ_FALLING, handler=voltar)  
 
 # Display OLED
 i2c = SoftI2C(scl=Pin(15), sda=Pin(14))
@@ -416,5 +451,6 @@ def joystick_handler(pin):
         draw_game_state()
 
 # Inicia o jogo
+
 show_start_screen()
 game_loop()

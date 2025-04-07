@@ -4,12 +4,14 @@ import utime
 import random
 from ssd1306 import SSD1306_I2C
 import math
+import gc
 
 # --- Configuração dos pinos ---
 LED_PIN = 7        # GPIO7 para a matriz NeoPixel (5x5)
 JOYSTICK_X = 27    # GPIO27 (VRx do joystick)
 JOYSTICK_Y = 26    # GPIO26 (VRy do joystick)
 BUTTON_B = 6       # GPIO6 para o botão B (reset)
+BUTTON_A = 5
 OLED_SDA = 14      # GPIO14 (SDA do OLED)
 OLED_SCL = 15      # GPIO15 (SCL do OLED)
 
@@ -18,6 +20,7 @@ np = neopixel.NeoPixel(Pin(LED_PIN), 25)  # Matriz 5x5
 joy_x = ADC(Pin(JOYSTICK_X))
 joy_y = ADC(Pin(JOYSTICK_Y))
 button_b = Pin(BUTTON_B, Pin.IN, Pin.PULL_UP)
+button_a = Pin(BUTTON_A, Pin.IN, Pin.PULL_UP)
 i2c = SoftI2C(scl=Pin(OLED_SCL), sda=Pin(OLED_SDA))
 oled = SSD1306_I2C(128, 64, i2c)
 joy_button = Pin(22, Pin.IN, Pin.PULL_UP) 
@@ -36,7 +39,7 @@ last_score = -1
 win = False 
 reset = False
 win_state = 0
-
+import sys
 
 def check_joystick_movement():
     global direction, last_x, last_y, last_joystick_check
@@ -145,8 +148,8 @@ def game_sounds(action):
         play_tone_non_blocking(784, 200)  # Sol5
         play_tone_non_blocking(1046, 800) # Dó6 final (bem longo)
         
-    
 
+import gc
 
 def oposite(direction):
     if direction == 'LEFT':
@@ -192,6 +195,7 @@ def win_game():
     effect_step = 0
     game_sounds("WIN")
     show_win_screen()
+
     
 # Adicione no início do código (com as outras variáveis globais)
 COUNTDOWN_PATTERNS = {
@@ -607,6 +611,37 @@ def hue_to_rgb(h, S=1.0, V=1.0):
     return (R, G, B)
 
 
+def cleanup():
+    # Remove todas as interrupções
+    button_a.irq(handler=None)
+    button_b.irq(handler=None)
+    # Limpa a matriz de LEDs
+    # Desliga o buzzer se estiver ativo
+    buzzer.duty_u16(0)
+
+def voltar(p):
+    utime.sleep_ms(200)  # Debounce
+    cleanup()  # Limpeza antes de voltar
+    
+    # Mostra mensagem de retorno
+    oled.fill(0)
+    oled.text("Voltando...", 0, 30)
+    oled.show()
+    utime.sleep_ms(300)
+    
+    # Limpeza de memória antes de recarregar
+    gc.collect()
+    
+    # Força recarregamento do módulo main
+    if 'main' in sys.modules:
+        del sys.modules['main']
+    
+    # Importa e executa o menu principal
+    from main import main
+    main()
+
+button_a.irq(trigger=Pin.IRQ_FALLING, handler=voltar)  
+
 # --- Inicialização ---
 show_start_screen()
 while button_b.value() == 1:  # Espera pressionar o botão B
@@ -616,14 +651,16 @@ start_game()
 # --- Loop principal ---
 last_update = utime.ticks_ms()
 
+import sys
+
+
 while True:
+    
+    
     now = utime.ticks_ms()
     process_sounds()
     check_joystick_movement()
     process_game_effects()
-
-    print(f"Estado do jogo: {game_state}, Lose state: {lose_state}")  # Debug
-
     if game_state == "RUNNING":
         if utime.ticks_diff(now, last_update) >= int(game_speed * 1000):
             last_update = now
@@ -632,7 +669,9 @@ while True:
             update_display()
             utime.sleep_ms(10)
             
-        
+# Limpeza final ao sair
+buzzer.duty_u16(0)
+clear_matrix()
     
     
     
