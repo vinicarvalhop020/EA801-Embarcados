@@ -445,8 +445,8 @@ def update_display_snake():
         oled.fill(0)
         oled.text(f"Pontos: {score}", 0, 0)
         oled.text(f"Dificulade: {dificuldade}", 0, 20)
-        oled.text(f"voltar ao menu:", 0, 30)
-        oled.text(f"Pressione A:", 0, 40)
+        oled.text(f"voltar ao menu:", 0, 40)
+        oled.text(f"Pressione A:", 0, 50)
         oled.show()
         last_score = score
         reset = False
@@ -1523,8 +1523,8 @@ def update_display_sp():
         oled.text(f"Pontos: {score}", 0, 0)
         oled.text(f"Vidas: {vidas}", 0, 20)
         oled.text(f"Fase {match}", 0, 30)
-        oled.text(f"voltar ao menu:", 0, 40)
-        oled.text(f"Pressione A:", 0, 50)
+        oled.text(f"voltar ao menu:", 0, 50)
+        oled.text(f"Pressione A:", 0, 60)
         oled.show()
         last_score = score
         reset = False
