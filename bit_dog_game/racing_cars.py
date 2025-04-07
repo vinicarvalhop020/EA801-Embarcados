@@ -1,66 +1,19 @@
-from machine import Pin, ADC, SoftI2C, PWM, Timer
-from ssd1306 import SSD1306_I2C
-import neopixel
-import utime
-import random
-import math
-
-last_joystick_time = 0
-
-
-# --- Variáveis globais ---
-MATRIX_MAP_RACING = [
-    [24, 23, 22, 21, 20],
-    [15, 16, 17, 18, 19],
-    [14, 13, 12, 11, 10],
-    [5, 6, 7, 8, 9],
-    [4, 3, 2, 1, 0]
-]
-
-COUNTDOWN_PATTERNS_RACING = {
-    3: [
-        [1, 1, 1, 1, 1],
-        [0, 0, 0, 0, 1],
-        [1, 1, 1, 1, 1],
-        [0, 0, 0, 0, 1],
-        [1, 1, 1, 1, 1]
-    ],
-    2: [
-        [1, 1, 1, 1, 1],
-        [0, 0, 0, 0, 1],
-        [1, 1, 1, 1, 1],
-        [1, 0, 0, 0, 0],
-        [1, 1, 1, 1, 1]
-    ],
-    1: [
-        [0, 0, 1, 0, 0],
-        [0, 1, 1, 0, 0],
-        [0, 0, 1, 0, 0],
-        [0, 0, 1, 0, 0],
-        [0, 1, 1, 1, 0]
-    ]
-}
-
-VICTORY_SOUND = [
-    (392, 200),  # Sol
-    (523, 200),  # Dó agudo
-    (659, 300),  # Mi
-    (784, 400)   # Sol agudo
-]
-
-GAMEOVER_SOUND = [
-    (165, 400),  # Mi
-    (131, 600),  # Dó
-    (110, 800)   # Lá mais grave
-]
-
-
 def game_vars_cars():
     global i2c, oled, joy_x, joy_y, JOYSTICK_THRESHOLD_LOW, JOYSTICK_THRESHOLD_HIGH, machine
     global botao_b_dog, player_x, player_y, score, game_active, cars, last_car_move, button_a
     global last_car_generation, should_generate_cars, game_over, BUZZER_PIN, buzzer
     global engine_sound_enabled, last_sound_update, current_frequency, target_frequency
     global engine_rpm, DEBOUNCE_TIME, last_button_time, np, joystick_timer, last_button_time
+    global direction, last_x, last_y, last_joystick_check, joystick_interval, threshold, last_joystick_time
+    global button_b, brightness, utime, random, math, MATRIX_MAP_RACING, ast_joystick_time
+    global COUNTDOWN_PATTERNS_RACING, VICTORY_SOUND, GAMEOVER_SOUND
+
+    from machine import Pin, ADC, SoftI2C, PWM, Timer
+    from ssd1306 import SSD1306_I2C
+    import neopixel
+    import utime
+    import random
+    import math
 
     # Display OLED
     i2c = SoftI2C(scl=Pin(15), sda=Pin(14))
@@ -71,18 +24,15 @@ def game_vars_cars():
     joy_y = ADC(Pin(26))  # Vertical
     JOYSTICK_THRESHOLD_LOW = 12000
     JOYSTICK_THRESHOLD_HIGH = 52000
+    BUZZER_PIN = 21  # GPIO21 para Buzzer
 
     # Botões
-    botao_b_dog = Pin(6, Pin.IN, Pin.PULL_UP)
+    button_b = Pin(6, Pin.IN, Pin.PULL_UP)
     button_a = Pin(5, Pin.IN, Pin.PULL_UP)
-    botao_b_dog.irq(trigger=Pin.IRQ_FALLING, handler=button_handler)
     np = neopixel.NeoPixel(Pin(7), 25)  # Matriz 5x5
-    joystick_timer = Pin(22, Pin.IN, Pin.PULL_UP) 
-
-    joystick_timer = Timer(-1)
-    joystick_timer.init(period=100, mode=Timer.PERIODIC, callback=joystick_handler)  # Verifica
 
     # Variáveis do jogo
+    joystick_interval = 50  # ms (mesmo intervalo do timer anterior)
     player_x = 2
     player_y = 4
     score = 100
@@ -92,7 +42,6 @@ def game_vars_cars():
     last_car_generation = 0
     should_generate_cars = True
     game_over = False
-    BUZZER_PIN = 21  # GPIO21 para Buzzer
     buzzer = PWM(Pin(BUZZER_PIN))
     engine_sound_enabled = True
     last_sound_update = 0
@@ -100,19 +49,71 @@ def game_vars_cars():
     target_frequency = 0
     last_joystick_time = 0
     engine_rpm = 0 
+    threshold = 10000
+    last_joystick_check = 0
+    brightness = 0.1
 
     # Variáveis de debounce
     DEBOUNCE_TIME = 500
     last_button_time = 0
+    ast_joystick_time = 0
 
-# Função para embaralhar manualmente (substitui o random.shuffle)
+    # --- Variáveis globais ---
+    MATRIX_MAP_RACING = [
+        [24, 23, 22, 21, 20],
+        [15, 16, 17, 18, 19],
+        [14, 13, 12, 11, 10],
+        [5, 6, 7, 8, 9],
+        [4, 3, 2, 1, 0]
+    ]
+
+    COUNTDOWN_PATTERNS_RACING = {
+        3: [
+            [1, 1, 1, 1, 1],
+            [0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1],
+            [0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1]
+        ],
+        2: [
+            [1, 1, 1, 1, 1],
+            [0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0],
+            [1, 1, 1, 1, 1]
+        ],
+        1: [
+            [0, 0, 1, 0, 0],
+            [0, 1, 1, 0, 0],
+            [0, 0, 1, 0, 0],
+            [0, 0, 1, 0, 0],
+            [0, 1, 1, 1, 0]
+        ]
+    }
+
+    VICTORY_SOUND = [
+        (392, 200),  # Sol
+        (523, 200),  # Dó agudo
+        (659, 300),  # Mi
+        (784, 400)   # Sol agudo
+    ]
+
+    GAMEOVER_SOUND = [
+        (165, 400),  # Mi
+        (131, 600),  # Dó
+        (110, 800)   # Lá mais grave
+    ]
+
+
 def manual_shuffle(arr):
+    """Implementa um metodo de embaralhar uma lista"""
     for i in range(len(arr)-1, 0, -1):
         j = random.randint(0, i)
         arr[i], arr[j] = arr[j], arr[i]
     return arr
 
 def update_engine_sound():
+    """Controla os sons do carro, motor e arranque"""
     global last_sound_update, current_frequency, target_frequency, engine_rpm
     
     if not engine_sound_enabled or not game_active:
@@ -178,6 +179,7 @@ def show_number(number, color):
     np.write()
 
 def draw_game_state():
+    """Desenha o estado do jogo"""
     np.fill((0, 0, 0))
     for car in cars:
         if 0 <= car[0] < 5:
@@ -186,6 +188,7 @@ def draw_game_state():
     np.write()
 
 def debounce():
+    """Controla o debounce dos botões"""
     global last_button_time
     current_time = utime.ticks_ms()  # Alterado de time para utime
     if current_time - last_button_time < DEBOUNCE_TIME:
@@ -202,12 +205,13 @@ def apply_brightness_cars(color, brightness):
         int(b * brightness)
     )
 
-def button_handler(pin):
+def button_handler():
+    """Controla o botão de reset ao apertar B"""
     global game_active, score, player_x, player_y, cars, should_generate_cars, game_over, engine_sound_enabled
     
     if not debounce():
         return
-    
+
     if not game_active:
         game_active = True
         game_over = False
@@ -264,6 +268,7 @@ def button_handler(pin):
             show_game_over_cars()
 
 def generate_subsequent_cars():
+    """gera uma sequencia de inimigos"""
     global cars
     positions = manual_shuffle([0, 1, 2, 3, 4])
     num_cars = random.randint(1, 4)
@@ -276,6 +281,7 @@ def generate_subsequent_cars():
     cars.extend(new_cars)
 
 def move_cars():
+    """move a posição dos carros inimigos"""
     global cars, game_active, score, last_car_move, should_generate_cars, last_car_generation, game_over
     
     current_time = utime.ticks_ms()  # Alterado de time para utime
@@ -321,11 +327,14 @@ def move_cars():
     draw_game_state()
 
 def update_display_cars():
+    """Mostra no OLED a posição atual do jogador na corrida"""
     oled.fill(0)
-    oled.text(f"Pontos: {score}", 0, 0)
+    oled.text(f"Posicao: {score}", 0, 0)
+    oled.text(f"Voltar menu (A)",0, 10)
     oled.show()
 
 def show_game_over_cars():
+    """Mostra no OLED game over"""
     global engine_sound_enabled
     engine_sound_enabled = False
     buzzer.duty_u16(0)  # Desliga o som do motor
@@ -358,6 +367,7 @@ def show_game_over_cars():
     buzzer.duty_u16(0)  # Garante que o buzzer seja desligado
 
 def show_win_message_cars():
+    """Mostra no OLED Vitoria"""
     global engine_sound_enabled
     engine_sound_enabled = False
     buzzer.duty_u16(0)  # Desliga o som do motor
@@ -392,110 +402,66 @@ def show_start_screen_cars():
     oled.text("Pressione B", 25, 40)
     oled.show()
 
+def clear_matrix_cars():
+    """Apaga todos os LEDs"""
+    for i in range(25):
+        np[i] = (0, 0, 0)
+
+def joystick_moves():
+    """Contra a posição do jogador com base na leitura do joystick"""
+    global player_x, player_y, last_joystick_check
+    
+    if not game_active:
+        return
+    
+    now = utime.ticks_ms()
+
+    if utime.ticks_diff(now, last_joystick_check) >= joystick_interval:
+        last_joystick_check = now
+    
+        x_value = joy_x.read_u16()
+        y_value = joy_y.read_u16()
+    
+        new_x = player_x
+        new_y = player_y
+    
+        # Movimento horizontal
+        if x_value < JOYSTICK_THRESHOLD_LOW:
+            new_x = max(0, player_x - 1)
+        elif x_value > JOYSTICK_THRESHOLD_HIGH:
+            new_x = min(4, player_x + 1)
+    
+        # Movimento vertical
+        if y_value < JOYSTICK_THRESHOLD_LOW:
+            new_y = min(4, player_y + 1)
+        elif y_value > JOYSTICK_THRESHOLD_HIGH:
+            new_y = max(0, player_y - 1)
+        
+        # Atualiza apenas se houve mudança
+        if new_x != player_x or new_y != player_y:
+            player_x, player_y = new_x, new_y
+            draw_game_state()
+            update_engine_sound()  # Atualiza o som do motor quando o jogador se move
+
+
 def run():
+    """função principal do jogo"""
     game_vars_cars()
     show_start_screen_cars()
-
     while True:
         if game_active:
+            joystick_moves()
             move_cars()
         utime.sleep(0.05)  # Alterado de time para utime
 
         if button_a.value() == 0:
-            reset_game()
             break
+
+        if button_b.value() == 0:
+           button_handler()
 
     oled.fill(0)
     oled.show()
     clear_matrix_cars()
     return
 
-# Configura interrupção do joystick
-
-def clear_matrix_cars():
-    """Apaga todos os LEDs"""
-    for i in range(25):
-        np[i] = (0, 0, 0)
-
-# Função de interrupção do joystick
-def joystick_handler(timer):
-    global player_x, player_y, last_joystick_time
-    
-    current_time = utime.ticks_ms()
-    if current_time - last_joystick_time < 200:  # Debounce de 200ms
-        return
-    last_joystick_time = current_time
-    
-    if not game_active:
-        return
-    
-    x_value = joy_x.read_u16()
-    y_value = joy_y.read_u16()
-    
-    new_x = player_x
-    new_y = player_y
-    
-    # Movimento horizontal
-    if x_value < JOYSTICK_THRESHOLD_LOW:
-        new_x = max(0, player_x - 1)
-    elif x_value > JOYSTICK_THRESHOLD_HIGH:
-        new_x = min(4, player_x + 1)
-    
-    # Movimento vertical
-    if y_value < JOYSTICK_THRESHOLD_LOW:
-        new_y = min(4, player_y + 1)
-    elif y_value > JOYSTICK_THRESHOLD_HIGH:
-        new_y = max(0, player_y - 1)
-    
-    # Atualiza apenas se houve mudança
-    if new_x != player_x or new_y != player_y:
-        player_x, player_y = new_x, new_y
-        draw_game_state()
-        update_engine_sound()  # Atualiza o som do motor quando o jogador se move
-
-
-def reset_game():
-    global player_x, player_y, score, game_active, cars, last_car_move, last_car_generation
-    global should_generate_cars, game_over, engine_sound_enabled, last_sound_update
-    global current_frequency, target_frequency, engine_rpm, last_button_time
-    global joystick_timer
-    
-    # Reinicia posição do jogador
-    player_x = 2
-    player_y = 4
-    
-    # Reinicia pontuação
-    score = 100
-    
-    # Reinicia estado do jogo
-    game_active = False
-    game_over = False
-    
-    # Limpa lista de carros
-    cars = []
-    
-    # Reinicia temporizadores
-    last_car_move = 0
-    last_car_generation = 0
-    last_sound_update = 0
-    last_button_time = 0
-    
-    # Configurações de geração de carros
-    should_generate_cars = True
-    
-    # Configurações de áudio
-    engine_sound_enabled = True
-    current_frequency = 200
-    target_frequency = 0
-    engine_rpm = 0
-    
-    joystick_timer = None
-    # Desliga o buzzer
-    buzzer.duty_u16(0)
-    
-    # Limpa a matriz de LEDs
-    clear_matrix_cars()
-    
-    # Limpa o display OLED
-    oled.fill(0)
-    oled.show()

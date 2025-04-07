@@ -1,5 +1,5 @@
-########SPACEINVADERS##
 def space_vars():
+    #Variaveis e imports de SPACE_INAVADERS
     global np, joy_x, joy_y, button_b, button_a, i2c, oled, joy_button, buzzer, time, utime, math, random
     global dificuldade, last_score, start_defeat, nave_pos, tiros, inimigos_1, inimigos_2
     global inimigos_3, match, game_state, brightness, direcao_inimigos, score
@@ -16,21 +16,15 @@ def space_vars():
     import math
     import time
     import utime
-
-        # --- Loop Principal ---
+    
     last_update = utime.ticks_ms()
-
     last_enemy_move = utime.ticks_ms()
-    enemy_move_interval = 2000  # ms (1 segundo para descer)
-
+    enemy_move_interval = 2000  
     last_tiro_move = utime.ticks_ms()
-    tiro_move_interval = 200  # ms (mais rápido que o padrão atual)
-
+    tiro_move_interval = 200 
     last_nave_move = utime.ticks_ms()
-    nave_move_interval = 200  # A nave só pode se mover a cada 200 ms
+    nave_move_interval = 200  
 
-
-    # --- Configuração dos pinos ---
     LED_PIN = 7        # GPIO7 para a matriz NeoPixel (5x5)
     JOYSTICK_X = 27    # GPIO27 (VRx do joystick)
     JOYSTICK_Y = 26    # GPIO26 (VRy do joystick)
@@ -38,8 +32,8 @@ def space_vars():
     BUTTON_A = 5
     OLED_SDA = 14      # GPIO14 (SDA do OLED)
     OLED_SCL = 15      # GPIO15 (SCL do OLED)
+    MAX_SOUND_QUEUE = 3  # Limite máximo de sons na fila
 
-    # --- Inicialização ---
     np = neopixel.NeoPixel(Pin(LED_PIN), 25)
     joy_x = ADC(Pin(JOYSTICK_X))
     joy_y = ADC(Pin(JOYSTICK_Y))
@@ -53,7 +47,6 @@ def space_vars():
     last_score = -1
     start_defeat = False
 
-    # --- Variáveis do Jogo ---
     MATRIX_MAP = [  
         [24, 23, 22, 21, 20],  # Linha 0 (topo)
         [15, 16, 17, 18, 19],  # Linha 1
@@ -62,36 +55,7 @@ def space_vars():
         [4, 3, 2, 1, 0]        # Linha 4 (base)
     ]
 
-    nave_pos = [2, 4]
-    tiros = []
-    inimigos_1 = [[i, 0] for i in range(5)]  # Inimigos vermelhos (linha 0)
-    inimigos_2 = []  # Inimigos verdes (aparecem depois)
-    inimigos_3 = []  # Inimigos azuis (aparecem depois)
-    match = 1
-    game_state = "RUNNING"  # Começa no estado START
-    brightness = 0.1
-    match = 1
-    direcao_inimigos = 1  # 1 = direita, -1 = esquerda
-    score = 0
-    first_move = True  
-    lose_state = False
-    reset = False
-    tiro_on = False
-    vidas = 3
-
-    sound_queue = []
-    current_sound = None
-    sound_start_time = 0
-    MAX_SOUND_QUEUE = 3  # Limite máximo de sons na fila
-
-    game_over_melody = [
-        (523, 200), (466, 200), (440, 200), (392, 250), (349, 250),
-        (330, 300), (294, 350), (262, 400), (247, 450), (220, 500), (196, 600)
-    ]
-    current_note_index = -1
-    note_start_time = 0
-    is_playing_melody = False
-
+    #Seta os numeros que aparecem no menu ao iniciar
     COUNTDOWN_PATTERNS = {
         3: [
             [1, 1, 1, 1, 1],
@@ -116,6 +80,7 @@ def space_vars():
         ]
     }
 
+    #Seta a matriz de derrota L-O-S-E-R
     LOSE_PATTERNS = {
         'L': [
             [1, 0, 0, 0, 0],
@@ -154,6 +119,36 @@ def space_vars():
         ]
     }
 
+
+    nave_pos = [2, 4]
+    tiros = []
+    inimigos_1 = [[i, 0] for i in range(5)]  # Inimigos vermelhos (linha 0)
+    inimigos_2 = []  # Inimigos verdes (aparecem depois)
+    inimigos_3 = []  # Inimigos azuis (aparecem depois)
+    match = 1
+    game_state = "RUNNING"  
+    brightness = 0.1
+    match = 1
+    direcao_inimigos = 1  # 1 = direita, -1 = esquerda
+    score = 0
+    first_move = True  
+    lose_state = False
+    reset = False
+    tiro_on = False
+    vidas = 3
+    sound_queue = []
+    current_sound = None
+    sound_start_time = 0
+    current_note_index = -1
+    note_start_time = 0
+    is_playing_melody = False
+
+    game_over_melody = [
+        (523, 200), (466, 200), (440, 200), (392, 250), (349, 250),
+        (330, 300), (294, 350), (262, 400), (247, 450), (220, 500), (196, 600)
+    ]
+    
+    #interrupção para o botao b atirar
     button_b.irq(trigger=Pin.IRQ_FALLING, handler=lambda p: atirar())
 
 def play_tone_non_blocking_sp(frequency, duration):
@@ -162,12 +157,11 @@ def play_tone_non_blocking_sp(frequency, duration):
         sound_queue.append((frequency, duration))
 
 def ship_sounds(action):
-    """Efeitos sonoros melhorados"""
+    """Efeitos sonoros da nave"""
     if action == "tiro":
-        # Laser espacial descendente (mais realista)
-        play_tone_non_blocking_sp(1200, 30)  # Frequência alta inicial
-        play_tone_non_blocking_sp(900, 30)   # Queda rápida
-        play_tone_non_blocking_sp(600, 40)   # Finalização
+        play_tone_non_blocking_sp(1200, 30)  
+        play_tone_non_blocking_sp(900, 30)   
+        play_tone_non_blocking_sp(600, 40)   
     
     elif action == "explosao":
         # Explosão com ruído "granulado"
@@ -183,15 +177,14 @@ def play_game_over_sound():
     """Inicia a melodia de game over (não bloqueante)"""
     global current_note_index, note_start_time, is_playing_melody
     
-    buzzer.duty_u16(0)  # Garante que o buzzer está desligado
+    buzzer.duty_u16(0) 
     current_note_index = 0
     note_start_time = utime.ticks_ms()
     is_playing_melody = True
     
-    # Toca a primeira nota
     freq, duration = game_over_melody[current_note_index]
     buzzer.freq(freq)
-    buzzer.duty_u16(100)
+    buzzer.duty_u16(2000)
 
 def update_melody():
     """Deve ser chamada no loop principal para gerenciar a melodia"""
@@ -256,10 +249,11 @@ def process_sounds_sp():
     if current_sound is None and sound_queue:
         current_sound = sound_queue.pop(0)  # Pega o som mais antigo (FIFO)
         buzzer.freq(current_sound[0])
-        buzzer.duty_u16(100)
+        buzzer.duty_u16(2000)
         sound_start_time = now
 
 def start_game_sp():
+    """função que configura o start do jogo, sons e variaveis"""
     global game_state, effect_start_time, effect_step, tiro_on
     tiro_on = True
     game_state = "START"
@@ -268,6 +262,7 @@ def start_game_sp():
     game_sounds_sp("game_start")  # Adicione um som específico para início
 
 def lose_game_sp():
+    """função que configura a derrota do jogo, sons e variaveis"""
     global game_state, effect_start_time, effect_step, lose_state
     lose_state = True
     game_state = "LOSE"
@@ -305,6 +300,7 @@ def show_pattern_sp(pattern, number, color):
 
 
 def process_game_effects_sp():
+    """função responsavel por controlar as imagems do jogo de start e lose na matriz"""
     global game_state, effect_start_time, effect_step, first_move
     
     now = utime.ticks_ms()
@@ -418,12 +414,14 @@ def draw_game_sp():
     np.write()
 
 def update_display_sp():
+    """atualiza o display com pontuacao, vidas, fase atual e volta para o menu"""
     global last_score, reset
     if (score != last_score or reset):
         oled.fill(0)
         oled.text(f"Pontos: {score}", 0, 0)
         oled.text(f"Vidas: {vidas}", 0, 20)
         oled.text(f"Fase {match}", 0, 30)
+        oled.text(f"Voltar menu (A)",0, 40)
         oled.show()
         last_score = score
         reset = False
@@ -431,7 +429,7 @@ def update_display_sp():
 def atirar():
     """Dispara um novo tiro"""
     if (tiro_on):
-        if len(tiros) < 3:  # Limite de 2 tiros simultâneos
+        if len(tiros) < 3:  # Limite de 3 tiros simultâneos
             tiros.append([nave_pos[0], nave_pos[1] - 1])
             ship_sounds("tiro")
 
@@ -494,7 +492,6 @@ def mover_inimigos_sp():
             inimigo[0] += direcao_inimigos  # Move lateralmente
 
     # Verifica se algum inimigo chegou ao fundo
-    # Versão corrigida:
     if any(inimigo[1] >= 4 for grupo in [inimigos_1, inimigos_2, inimigos_3] for inimigo in grupo):
             vidas -= 1
             game_sounds_sp("hit")
@@ -544,6 +541,7 @@ def verificar_colisoes_sp():
 
 
 def reset_positions_sp():
+    """reseta a posição dos inimigos, e configura para aparecer mais com base na rodada"""
     global nave_pos, tiros, inimigos_1, inimigos_2, inimigos_3, match
     nave_pos = [2, 4]
     tiros = []
@@ -557,8 +555,8 @@ def reset_positions_sp():
     if match >= 3:
         inimigos_3 = [[i, -2] for i in range(5)]  # Começa "escondido
 
-
 def reset_game_sp():
+    """função que reseta as variaveis do jogo"""
     global nave_pos, tiros, inimigos_1, inimigos_2, inimigos_3, score, vidas, game_state, match, enemy_move_interval, dificuldade, lose_state, start_defeat, current_sound, tiro_on, reset
     nave_pos = [2, 4]
     tiros = []
@@ -576,9 +574,27 @@ def reset_game_sp():
     tiro_on = True
     start_defeat = False
 
-# --- Inicialização ---
+def reset_to_menu():
+    """função que reseta o jogo caso va para o menu"""
+    global nave_pos, tiros, inimigos_1, inimigos_2, inimigos_3, score, vidas, game_state, match, enemy_move_interval, dificuldade, lose_state, start_defeat, current_sound, tiro_on, reset
+    nave_pos = [2, 4]
+    tiros = []
+    inimigos_1 = [[i, 0] for i in range(5)]
+    inimigos_2 = []
+    inimigos_3 = []
+    enemy_move_interval = 2000
+    score = 0
+    vidas = 3
+    reset = True
+    match = 1
+    game_state = "START"
+    lose_state = False  # Reseta o estado de derrota
+    dificuldade = 0
+    tiro_on = False # Nao saem tiros sem querer ao ir para o menu, ou resetar
+    start_defeat = False
 
 
+#função principal de funcionamento do jogo
 def run():
     space_vars()
     global last_nave_move, last_enemy_move, last_tiro_move, enemy_move_interval
@@ -589,14 +605,14 @@ def run():
     global note_start_time, is_playing_melody, effect_start_time, effect_step
 
     show_start_screen_sp()
-    while button_b.value() == 1:  # Espera pressionar o botão B
+    while button_b.value() == 1:  # Espera pressionar o botão B para começar
         time.sleep(0.1)
     start_game_sp()
     
     show_start_screen_sp()
     while True:
-        if button_a.value() == 0:
-            reset_game_sp()
+        if button_a.value() == 0: # Espera pressionar o botão A quebra o loop e volta para o menu
+            reset_to_menu()
             break
 
         now = utime.ticks_ms()
@@ -639,3 +655,4 @@ def run():
     clear_matrix_sp()
     return
 
+run()

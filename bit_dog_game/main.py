@@ -60,32 +60,28 @@ def draw_menu_cursor(position):
 def show_menu():
     """Mostra o menu no display OLED"""
     oled.fill(0)
-    oled.text("=== MENU ===", 0, 0)
+    oled.text("GAME DOG LAB", 0, 0)
     
     for i, item in enumerate(menu_items):
         y_pos = 15 + i * 10
         prefix = ">" if i == current_selection else " "
         oled.text(f"{prefix} {item}", 0, y_pos)
     
-    oled.text("A: Voltar B: Selecionar", 0, 55)
+    oled.text("B: Selecionar", 0, 55)
     oled.show()
 
 def play_tone(frequency, duration_ms):
     """Toca um tom no buzzer"""
     buzzer.freq(frequency)
-    buzzer.duty_u16(100)  # 50% duty cycle
+    buzzer.duty_u16(1000)  # 50% duty cycle
     utime.sleep_ms(duration_ms)
     buzzer.duty_u16(0)
 
 def read_joystick():
     """Lê o joystick e retorna a direção"""
-    x = joy_x.read_u16()
     y = joy_y.read_u16()
-    
-    if x < 15000: return "UP"     # Invertido para navegação no menu
-    elif x > 50000: return "DOWN" # Invertido para navegação no menu
-    elif y < 15000: return "LEFT"
-    elif y > 50000: return "RIGHT"
+    if y < 15000: return "DOWN"
+    elif y > 50000: return "UP"
     return None
 
 def load_game(game_index):
@@ -93,7 +89,7 @@ def load_game(game_index):
     play_tone(784, 100)  # Tom de confirmação
     
     try:
-        # Importa dinamicamente o módulo do jogo
+        # Importa o módulo do jogo
         game_module = __import__(game_modules[game_index])
         
         # Limpa a tela antes de iniciar o jogo
@@ -117,6 +113,7 @@ def load_game(game_index):
         oled.show()
         utime.sleep(3)
         show_menu()
+
 
 def main():
     global current_selection

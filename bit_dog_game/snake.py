@@ -13,7 +13,6 @@ def game_vars():
     import random
     from ssd1306 import SSD1306_I2C
     import math
-    # --- Configuração dos pinos ---
     LED_PIN = 7        # GPIO7 para a matriz NeoPixel (5x5)
     JOYSTICK_X = 27    # GPIO27 (VRx do joystick)
     JOYSTICK_Y = 26    # GPIO26 (VRy do joystick)
@@ -22,7 +21,6 @@ def game_vars():
     OLED_SDA = 14      # GPIO14 (SDA do OLED)
     OLED_SCL = 15      # GPIO15 (SCL do OLED)
 
-    # --- Inicialização dos componentes ---
     np = neopixel.NeoPixel(Pin(LED_PIN), 25)  # Matriz 5x5
     button_b = Pin(BUTTON_B, Pin.IN, Pin.PULL_UP)
     button_a = Pin(BUTTON_A, Pin.IN, Pin.PULL_UP)
@@ -32,7 +30,6 @@ def game_vars():
     joy_x = ADC(Pin(27))  # Joystick X
     joy_y = ADC(Pin(26))  # Joystick Y
 
-    # Variáveis globais para armazenar o último estado do joystick
     last_joystick_check = 0
     joystick_interval = 50  # ms (mesmo intervalo do timer anterior)
     last_x = 32768
@@ -72,7 +69,6 @@ def game_vars():
     running = True
     buzzer = PWM(Pin(21))
 
-        # Adicione no início do código (com as outras variáveis globais)
     COUNTDOWN_PATTERNS_snake = {
         3: [
             [1, 1, 1, 1, 1],
@@ -162,6 +158,7 @@ def game_vars():
 
 
 def check_joystick_movement():
+    """função de controle do joystick"""
     global direction, last_x, last_y, last_joystick_check
     
     now = utime.ticks_ms()
@@ -215,6 +212,8 @@ def snake_sounds(action):
         play_tone_non_blocking_snake(100, 20)  # Som curto de movimento (20ms)
 
 def game_sounds_snake(action):
+    """responsavel pelos sons do jogo"""
+
     if action == "game_start":
         for freq in [392, 349, 330]:
             play_tone_non_blocking_snake(freq, 1000)  # 150ms por nota
@@ -241,6 +240,7 @@ def game_sounds_snake(action):
         
 
 def oposite(direction):
+    """funçao de controle que impede movimento opostos (cobra virar do avesso)"""
     if direction == 'LEFT':
         return 'RIGHT'
     if direction == 'RIGHT':
@@ -260,6 +260,7 @@ def apply_brightness(color, brightness):
     )
 
 def start_game_snake():
+    """seta o estado do jogo para start e apita os sons"""
     global game_state, effect_start_time, effect_step, direction
     game_state = "START"
     effect_start_time = utime.ticks_ms()
@@ -268,6 +269,7 @@ def start_game_snake():
     game_sounds_snake("game_start")  # Adicione um som específico para início
 
 def lose_game_snake():
+    """seta o estado do jogo para derrota e apita os sons"""
     global game_state, effect_start_time, effect_step, lose_state
     if not lose_state:
         lose_state = True
@@ -278,6 +280,7 @@ def lose_game_snake():
         show_loose_screen_snake()
 
 def win_game_snake():
+    """seta o estado do jogo para vitoria e apita os sons"""
     global game_state, effect_start_time, effect_step
     game_state = "WIN"
     effect_start_time = utime.ticks_ms()
@@ -324,8 +327,6 @@ def show_pattern_snake(pattern, number, color):
                     set_pixel(x, y, (0, 0, 0))
         np.write()
     
-
-
 def process_game_effects_snake():
     global game_state, effect_start_time, effect_step, win_state,lose_state
     now = utime.ticks_ms()
@@ -410,7 +411,6 @@ def process_game_effects_snake():
                     win_state += 1
                     win_game_snake()        
         
-# --- Funções principais ---
 def set_pixel(x, y, color):
     """Acende o LED na posição (x,y) com RGB"""
     if 0 <= x < 5 and 0 <= y < 5:
@@ -430,23 +430,27 @@ def show_start_screen_snake():
     oled.show()
 
 def show_win_screen_snake():
+        """mostra no oled a tela de vitoria"""
         oled.fill(0)
         oled.text(f"PARABENS", 0, 0)
         oled.text(f"VOCE GANHOU", 0, 20)
         oled.show()
 
 def show_loose_screen_snake():
+        """mostra no oled a tela de derrota"""
         oled.fill(0)
         oled.text(f"QUE PENA", 0, 0)
         oled.text(f"VOCE PERDEU!", 0, 20)
         oled.show()
 
 def update_display_snake():
+    """atualiza a pontuação da snake"""
     global last_score, reset
     if (score != last_score or reset):
         oled.fill(0)
         oled.text(f"Pontos: {score}", 0, 0)
-        oled.text(f"Dificulade: {dificuldade}", 0, 20)
+        oled.text(f"Dificulade: {dificuldade}", 0, 10)
+        oled.text(f"Voltar menu (A)", 0, 20)
         oled.show()
         last_score = score
         reset = False
@@ -485,6 +489,7 @@ def reset_game_snake():
     update_display_snake()
 
 def update_snake():
+    """Atualiza a posição da cobra"""
     global snake_pos, direction, score, game_speed, dificuldade,win, aumenta_dificuldade, lose_state
     
     head_x, head_y = snake_pos[0]
@@ -613,6 +618,7 @@ def hue_to_rgb(h, S=1.0, V=1.0):
 
 
 def run():
+    """funçao prinicipal de funcionamento do jogo"""
     game_vars()
     global oled, np, button_b, button_a, i2c, joy_button, joy_x, joy_y, utime, random, math
     global last_joystick_check, joystick_interval, last_x, last_y, threshold
